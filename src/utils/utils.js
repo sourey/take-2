@@ -4,3 +4,5 @@ export const shuffleDeck = (deck) => {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
 };
+
+export const isRedColor = (color) => color === "♥" || color === "♦";
