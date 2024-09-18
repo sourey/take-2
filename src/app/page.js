@@ -141,7 +141,7 @@ export default function Home() {
             <div className="flex justify-center">
               <h1 className="mt-20 mr-5">COMPUTER</h1>
               {computerDeck.map((card, index) => (
-                <Card card={card} index={index} />
+                <Card card={card} index={index} key={index} />
               ))}
             </div>
 
@@ -165,6 +165,7 @@ export default function Home() {
                   className="p-1 mx-2 transition hover:bg-gray-500 draggable"
                   draggable
                   onDragStart={(e) => handleDragStart(e, card)}
+                  key={index}
                 >
                   <Card card={card} index={index} />
                 </div>
