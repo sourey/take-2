@@ -1,6 +1,8 @@
 Take 2 is a uno like card game, also known as Switch card game. 
 It is a toned down version of Switch thats fun and addictive to play. 
 
+Dev URL: https://take-2-tau.vercel.app/
+
 
 
 
