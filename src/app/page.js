@@ -136,19 +136,21 @@ export default function Home() {
         </>
       ) : (
         <>
-          <div className="w-full h-screen flex items-center justify-center bg-gray-100">
-            <div className="w-[90vw] h-[90vh] max-w-[1200px] max-h-[800px] bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="w-full h-screen flex items-center justify-center bg-gray-900">
+            <div className="w-[90vw] h-[90vh] max-w-[1200px] max-h-[800px] bg-gray-800 rounded-lg shadow-lg overflow-hidden">
               <div className="w-full h-full grid grid-rows-[1fr_2fr_1fr] p-4">
                 {/* Computer's cards */}
                 <div className="flex justify-center items-center">
-                  <h1 className="mr-4 text-lg font-bold">COMPUTER</h1>
+                  <h1 className="mr-4 text-lg font-bold text-white">
+                    COMPUTER
+                  </h1>
                   <div className="flex space-x-2 overflow-x-auto">
                     {computerDeck.map((card, index) => (
                       <Card
                         key={index}
                         card={card}
                         index={index}
-                        className="w-[10%] max-w-[60px]"
+                        className="w-[10%] max-w-[60px] bg-white"
                       />
                     ))}
                   </div>
@@ -157,7 +159,7 @@ export default function Home() {
                 {/* Play area */}
                 <div className="flex justify-center items-center">
                   <div
-                    className="bg-gray-200 rounded-lg flex items-center justify-center w-[30%] h-[80%] min-w-[120px] min-h-[180px]"
+                    className="bg-gray-700 rounded-lg flex items-center justify-center w-[30%] h-[80%] min-w-[120px] min-h-[180px]"
                     onDragEnter={handleDragEnter}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
@@ -166,7 +168,7 @@ export default function Home() {
                       <Card
                         card={currentPlayCard}
                         index={0}
-                        className="w-[80%] h-[80%]"
+                        className="w-[80%] h-[80%] bg-white"
                       />
                     )}
                   </div>
@@ -174,21 +176,21 @@ export default function Home() {
 
                 {/* Player's cards */}
                 <div className="flex justify-center items-center">
-                  <h1 className="mr-4 text-lg font-bold">
+                  <h1 className="mr-4 text-lg font-bold text-white">
                     {playerName?.toUpperCase()}
                   </h1>
                   <div className="flex space-x-2 overflow-x-auto">
                     {playerDeck.map((card, index) => (
                       <div
                         key={index}
-                        className="p-1 transition hover:bg-gray-300 rounded cursor-move"
+                        className="p-1 transition hover:bg-gray-600 rounded cursor-move"
                         draggable
                         onDragStart={(e) => handleDragStart(e, card)}
                       >
                         <Card
                           card={card}
                           index={index}
-                          className="w-[10%] max-w-[60px]"
+                          className="w-[10%] max-w-[60px] bg-white"
                         />
                       </div>
                     ))}
