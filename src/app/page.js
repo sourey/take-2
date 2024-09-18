@@ -30,6 +30,7 @@ export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [gameCardNum, setGameCardNum] = useState(7);
   const [currentPlayCard, setCurrentPlayCard] = useState(null);
+  const [isDarkTheme, setIsDarkTheme] = useState(true);
 
   useEffect(() => {
     const initialDeck = [];
@@ -102,6 +103,10 @@ export default function Home() {
     e.dataTransfer.setData("text/plain", data);
   };
 
+  const toggleTheme = () => {
+    setIsDarkTheme(!isDarkTheme);
+  };
+
   return (
     <>
       {!gameStart ? (
@@ -136,12 +141,66 @@ export default function Home() {
         </>
       ) : (
         <>
-          <div className="w-full h-screen flex items-center justify-center bg-gray-900">
-            <div className="w-[90vw] h-[90vh] max-w-[1200px] max-h-[800px] bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-              <div className="w-full h-full grid grid-rows-[1fr_2fr_1fr] p-4">
+          <div
+            className={`w-full h-screen flex items-center justify-center ${
+              isDarkTheme ? "bg-gray-900" : "bg-gray-100"
+            }`}
+          >
+            <div
+              className={`w-[90vw] h-[90vh] max-w-[1200px] max-h-[800px] ${
+                isDarkTheme ? "bg-gray-800" : "bg-white"
+              } rounded-lg shadow-lg overflow-hidden`}
+            >
+              <div className="w-full h-full grid grid-rows-[auto_1fr_2fr_1fr] p-4">
+                {/* Theme toggle button */}
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={toggleTheme}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                      isDarkTheme ? "bg-gray-700" : "bg-yellow-400"
+                    }`}
+                  >
+                    {isDarkTheme ? (
+                      <svg
+                        className="w-6 h-6 text-yellow-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-6 h-6 text-gray-900"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
                 {/* Computer's cards */}
                 <div className="flex justify-center items-center">
-                  <h1 className="mr-4 text-lg font-bold text-white">
+                  <h1
+                    className={`mr-4 text-lg font-bold ${
+                      isDarkTheme ? "text-white" : "text-gray-900"
+                    }`}
+                  >
                     COMPUTER
                   </h1>
                   <div className="flex space-x-2 overflow-x-auto">
@@ -159,7 +218,9 @@ export default function Home() {
                 {/* Play area */}
                 <div className="flex justify-center items-center">
                   <div
-                    className="bg-gray-700 rounded-lg flex items-center justify-center w-[30%] h-[80%] min-w-[120px] min-h-[180px]"
+                    className={`${
+                      isDarkTheme ? "bg-gray-700" : "bg-gray-200"
+                    } rounded-lg flex items-center justify-center w-[30%] h-[80%] min-w-[120px] min-h-[180px]`}
                     onDragEnter={handleDragEnter}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
@@ -176,14 +237,22 @@ export default function Home() {
 
                 {/* Player's cards */}
                 <div className="flex justify-center items-center">
-                  <h1 className="mr-4 text-lg font-bold text-white">
+                  <h1
+                    className={`mr-4 text-lg font-bold ${
+                      isDarkTheme ? "text-white" : "text-gray-900"
+                    }`}
+                  >
                     {playerName?.toUpperCase()}
                   </h1>
                   <div className="flex space-x-2 overflow-x-auto">
                     {playerDeck.map((card, index) => (
                       <div
                         key={index}
-                        className="p-1 transition hover:bg-gray-600 rounded cursor-move"
+                        className={`p-1 transition ${
+                          isDarkTheme
+                            ? "hover:bg-gray-600"
+                            : "hover:bg-gray-300"
+                        } rounded cursor-move`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, card)}
                       >
