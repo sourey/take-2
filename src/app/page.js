@@ -136,40 +136,65 @@ export default function Home() {
         </>
       ) : (
         <>
-          <div className="flex flex-col justify-between h-screen p-5">
-            {/* Computer's cards */}
-            <div className="flex justify-center">
-              <h1 className="mt-20 mr-5">COMPUTER</h1>
-              {computerDeck.map((card, index) => (
-                <Card card={card} index={index} key={index} />
-              ))}
-            </div>
-
-            <div className="flex justify-center my-8">
-              <div
-                className="bg-gray-400 rounded-lg flex items-center justify-center"
-                style={{ height: "650px", width: "600px" }}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-              >
-                {currentPlayCard && <Card card={currentPlayCard} index={0} />}
-              </div>
-            </div>
-
-            {/* Player's cards */}
-            <div className="flex justify-center">
-              <h1 className="mt-20 mr-5">{playerName?.toUpperCase()}</h1>
-              {playerDeck.map((card, index) => (
-                <div
-                  className="p-1 mx-2 transition hover:bg-gray-500 draggable"
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, card)}
-                  key={index}
-                >
-                  <Card card={card} index={index} />
+          <div className="w-full h-screen flex items-center justify-center bg-gray-100">
+            <div className="w-[90vw] h-[90vh] max-w-[1200px] max-h-[800px] bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="w-full h-full grid grid-rows-[1fr_2fr_1fr] p-4">
+                {/* Computer's cards */}
+                <div className="flex justify-center items-center">
+                  <h1 className="mr-4 text-lg font-bold">COMPUTER</h1>
+                  <div className="flex space-x-2 overflow-x-auto">
+                    {computerDeck.map((card, index) => (
+                      <Card
+                        key={index}
+                        card={card}
+                        index={index}
+                        className="w-[10%] max-w-[60px]"
+                      />
+                    ))}
+                  </div>
                 </div>
-              ))}
+
+                {/* Play area */}
+                <div className="flex justify-center items-center">
+                  <div
+                    className="bg-gray-200 rounded-lg flex items-center justify-center w-[30%] h-[80%] min-w-[120px] min-h-[180px]"
+                    onDragEnter={handleDragEnter}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  >
+                    {currentPlayCard && (
+                      <Card
+                        card={currentPlayCard}
+                        index={0}
+                        className="w-[80%] h-[80%]"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Player's cards */}
+                <div className="flex justify-center items-center">
+                  <h1 className="mr-4 text-lg font-bold">
+                    {playerName?.toUpperCase()}
+                  </h1>
+                  <div className="flex space-x-2 overflow-x-auto">
+                    {playerDeck.map((card, index) => (
+                      <div
+                        key={index}
+                        className="p-1 transition hover:bg-gray-300 rounded cursor-move"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, card)}
+                      >
+                        <Card
+                          card={card}
+                          index={index}
+                          className="w-[10%] max-w-[60px]"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </>
