@@ -418,6 +418,7 @@ export default function Home() {
       }, 1500);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn, gameStart, winner, computerDeck, currentPlayCard, activeColor, penaltyStack, skipActive]);
 
   // Check win condition effect

@@ -38,7 +38,7 @@ export const GameRules = ({ isDarkTheme }) => {
               </ul>
             </li>
             <li>
-              <span className="font-bold">J (Jack):</span> Skips next player's turn. Can be countered by playing another Jack to pass the skip.
+              <span className="font-bold">J (Jack):</span> Skips next player&apos;s turn. Can be countered by playing another Jack to pass the skip.
             </li>
             <li>
               <span className="font-bold">2:</span> Next player must <strong>Draw 2</strong>. Can be chained with another 2 to stack penalty.
