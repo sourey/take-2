@@ -18,16 +18,35 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  
+  /* Poker Table Felt Textures */
+  .bg-poker-green {
+    background-color: #35654d;
+    background-image: radial-gradient(circle at center, #4a8c6a 0%, #35654d 60%, #264a38 100%);
+    box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
+  }
+
+  .bg-poker-dark {
+    background-color: #1a2b3c;
+    background-image: radial-gradient(circle at center, #2c4257 0%, #1a2b3c 60%, #0f1a24 100%);
+    box-shadow: inset 0 0 100px rgba(0,0,0,0.7);
+  }
+  
+  /* Felt Noise Overlay */
+  .felt-noise {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    opacity: 0.1;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
   }
 }

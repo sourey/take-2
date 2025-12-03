@@ -6,5 +6,3 @@ export const shuffleDeck = (deck) => {
 };
 
 export const isRedColor = (color) => color === "♥️" || color === "♦";
-
-export const logicHandler = (playedCard, currentPlayCard) => {};

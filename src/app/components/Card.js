@@ -1,10 +1,16 @@
 import { isRedColor } from "@/utils/utils";
+import { motion } from "framer-motion";
 
-export const Card = ({ index, card }) => {
+export const Card = ({ index, card, className, ...props }) => {
   return (
-    <div
-      key={index}
-      className={`relative w-20 h-24 bg-gray-200 rounded-lg shadow-md mx-2`}
+    <motion.div
+      layout
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.8, opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      className={`relative w-20 h-24 bg-gray-200 rounded-lg shadow-md mx-2 select-none ${className}`}
+      {...props}
     >
       <div
         className={`absolute top-1 left-1 ${
@@ -27,6 +33,6 @@ export const Card = ({ index, card }) => {
       >
         {card?.num}
       </div>
-    </div>
+    </motion.div>
   );
 };
