@@ -32,18 +32,23 @@ export default function Home() {
   const [visibleStack, setVisibleStack] = useState([]); // Last few cards for visual stack effect
   const [gameStart, setGameStart] = useState(false);
   const [playerDeck, setPlayerDeck] = useState([]);
-  const [computerDeck, setComputerDeck] = useState([]);
+  const [computerDecks, setComputerDecks] = useState([]); // Array of computer hands
   const [playerName, setPlayerName] = useState("");
-  const [gameCardNum, setGameCardNum] = useState(7);
+  const [gameCardNum, setGameCardNum] = useState(5);
+  const [numPlayers, setNumPlayers] = useState(4); // Total players (1 human + N-1 computers)
+  
+  // Cool names for computer opponents
+  const computerNames = ["Ace", "Shadow", "Blaze"];
   const [currentPlayCard, setCurrentPlayCard] = useState(null);
   const [activeColor, setActiveColor] = useState(null);
   const [isDarkTheme, setIsDarkTheme] = useState(true);
-  const [turn, setTurn] = useState("player"); // 'player' or 'computer'
+  const [turn, setTurn] = useState(0); // 0 = player, 1+ = computer index
   const [message, setMessage] = useState("");
   const [penaltyStack, setPenaltyStack] = useState(0);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [isStartingColorPick, setIsStartingColorPick] = useState(false); // Track if color pick is for starting Ace
-  const [winner, setWinner] = useState(null);
+  const [rankings, setRankings] = useState([]); // Array of player indices in order of finishing (1st, 2nd, etc.)
+  const [gameOver, setGameOver] = useState(false); // True when game is completely finished
   const [skipActive, setSkipActive] = useState(false); // Track if a skip is pending
   const [deckRecycled, setDeckRecycled] = useState(false); // Show deck recycled indicator
   const [qPairCard, setQPairCard] = useState(null); // Track Q pair secondary card for dual matching
@@ -67,43 +72,93 @@ export default function Home() {
     setDeck(initialDeck);
   }, []);
 
-  // Winner Effect: Confetti and Timer
+  // Rankings Effect: Confetti when player finishes first
   useEffect(() => {
-    if (winner) {
-      if (winner === "player") {
-        confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
-          zIndex: 100,
-        });
-      }
+    if (rankings.length > 0 && rankings[0] === 0) {
+      // Player got 1st place!
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        zIndex: 100,
+      });
+    }
+  }, [rankings]);
 
+  // Game Over Effect: Return to menu after showing results
+  useEffect(() => {
+    if (gameOver) {
       const timer = setTimeout(() => {
         setGameStart(false);
-        setWinner(null);
+        setGameOver(false);
+        setRankings([]);
         setPlayerDeck([]);
-        setComputerDeck([]);
+        setComputerDecks([]);
         setMessage("");
-      }, 5000);
+      }, 6000);
 
       return () => clearTimeout(timer);
     }
-  }, [winner]);
+  }, [gameOver]);
+  
+  // Helper to check if a player is still in the game
+  const isPlayerActive = (playerIndex) => {
+    return !rankings.includes(playerIndex);
+  };
+  
+  // Counterclockwise turn order based on table positions:
+  // Bottom (Player 0) → Right (3) → Top (1) → Left (2) → Bottom
+  const getCounterclockwiseTurnOrder = () => {
+    if (numPlayers === 2) return [0, 1];
+    if (numPlayers === 3) return [0, 1, 2];
+    if (numPlayers === 4) return [0, 3, 1, 2];
+    return Array.from({ length: numPlayers }, (_, i) => i);
+  };
+  
+  // Helper to get next active turn (skips eliminated players, counterclockwise)
+  const getNextActiveTurn = (currentTurn) => {
+    const turnOrder = getCounterclockwiseTurnOrder();
+    const currentIndex = turnOrder.indexOf(currentTurn);
+    let nextIndex = (currentIndex + 1) % turnOrder.length;
+    let next = turnOrder[nextIndex];
+    
+    // Skip players who have already finished
+    let attempts = 0;
+    while (rankings.includes(next) && attempts < turnOrder.length) {
+      nextIndex = (nextIndex + 1) % turnOrder.length;
+      next = turnOrder[nextIndex];
+      attempts++;
+    }
+    return next;
+  };
+  
+  // Count active players
+  const activePlayerCount = numPlayers - rankings.length;
 
   const startGame = () => {
-    if (!!playerName && !!gameCardNum) {
+    if (!!playerName && !!gameCardNum && numPlayers >= 2) {
       const newDeck = [...deck];
       shuffleDeck(newDeck);
 
+      // Deal cards to player
       let pDeck = newDeck.slice(0, gameCardNum);
-      const cDeck = newDeck.slice(gameCardNum, gameCardNum * 2);
-      const startCard = newDeck[gameCardNum * 2];
-      let remainingDeck = newDeck.slice(gameCardNum * 2 + 1);
+      
+      // Deal cards to each computer
+      const cDecks = [];
+      for (let i = 0; i < numPlayers - 1; i++) {
+        const startIdx = gameCardNum * (i + 1);
+        const endIdx = gameCardNum * (i + 2);
+        cDecks.push(newDeck.slice(startIdx, endIdx));
+      }
+      
+      // Start card is after all dealt cards
+      const startCardIdx = gameCardNum * numPlayers;
+      const startCard = newDeck[startCardIdx];
+      let remainingDeck = newDeck.slice(startCardIdx + 1);
 
       // Handle starting card penalties
       let startMessage = `Game Started! ${playerName}'s Turn`;
-      let startingTurn = "player";
+      let startingTurn = 0; // 0 = player
       let startingActiveColor = startCard.color;
       let showStartColorPicker = false;
       
@@ -120,8 +175,8 @@ export default function Home() {
         pDeck = [...pDeck, ...penaltyCards];
         startMessage = `Game Started! Starting card is Q - ${playerName} draws 1 card!`;
       } else if (startCard.num === "J") {
-        // Starting with J: player's turn is skipped
-        startingTurn = "computer";
+        // Starting with J: player's turn is skipped to next player
+        startingTurn = 1; // First computer
         startMessage = `Game Started! Starting card is J - ${playerName}'s turn is skipped!`;
       } else if (startCard.num === "A") {
         // Starting with A: player chooses active color
@@ -130,7 +185,7 @@ export default function Home() {
       }
 
       setPlayerDeck(pDeck);
-      setComputerDeck(cDeck);
+      setComputerDecks(cDecks);
       setCurrentPlayCard(startCard);
       setActiveColor(startingActiveColor);
       setDrawPile(remainingDeck);
@@ -140,7 +195,8 @@ export default function Home() {
       setMessage(startMessage);
       setPenaltyStack(0);
       setSkipActive(false);
-      setWinner(null);
+      setRankings([]);
+      setGameOver(false);
       setSelectedCards([]);
       setShowColorPicker(showStartColorPicker);
       setIsStartingColorPick(showStartColorPicker); // Mark if this is a starting Ace color pick
@@ -150,6 +206,7 @@ export default function Home() {
     }
   };
 
+  // who: 0 = player, 1+ = computer index (1-based for computers)
   const drawCard = (who, count = 1) => {
     let currentDrawPile = [...drawPile];
     let currentDiscardPile = [...discardPile];
@@ -180,29 +237,54 @@ export default function Home() {
     setDrawPile(newDrawPile);
     setDiscardPile(currentDiscardPile);
 
-    if (who === "player") {
+    if (who === 0) {
+      // Player
       setPlayerDeck((prev) => [...prev, ...cardsToDraw]);
     } else {
-      setComputerDeck((prev) => [...prev, ...cardsToDraw]);
+      // Computer (who is 1-based index for computers, so who-1 for array index)
+      const computerIndex = who - 1;
+      setComputerDecks((prev) => {
+        const newDecks = [...prev];
+        newDecks[computerIndex] = [...newDecks[computerIndex], ...cardsToDraw];
+        return newDecks;
+      });
     }
 
     if (recycled) {
-      setMessage(`Deck recycled! ${who === "player" ? playerName : "Computer"} drew ${actualCount} card(s).`);
+      const drawerName = who === 0 ? playerName : getComputerName(who - 1);
+      setMessage(`Deck recycled! ${drawerName} drew ${actualCount} card(s).`);
     }
 
     return cardsToDraw;
   };
+  
+  // Helper to get the name of the current turn player
+  const getTurnPlayerName = (turnIndex) => {
+    return turnIndex === 0 ? playerName : getComputerName(turnIndex - 1);
+  };
+  
+  // Helper to get next turn (counterclockwise around the table)
+  const getNextTurn = (currentTurn) => {
+    const turnOrder = getCounterclockwiseTurnOrder();
+    const currentIndex = turnOrder.indexOf(currentTurn);
+    const nextIndex = (currentIndex + 1) % turnOrder.length;
+    return turnOrder[nextIndex];
+  };
 
   const handlePlayerNameChange = (e) => setPlayerName(e.target.value);
   const handleGameCardNumChange = (e) => setGameCardNum(parseInt(e.target.value));
+  const handleNumPlayersChange = (e) => setNumPlayers(parseInt(e.target.value));
   const toggleTheme = () => setIsDarkTheme(!isDarkTheme);
+  
+  // Helper to get computer name
+  const getComputerName = (index) => computerNames[index] || `Bot ${index + 1}`;
 
   // Power cards that cannot be paired with Q
   const POWER_CARD_NUMS = ["A", "2", "J", "K"];
   const isNormalCard = (c) => !POWER_CARD_NUMS.includes(c.num) && c.num !== "Q";
 
   const handleCardClick = (card) => {
-    if (turn !== "player") return;
+    if (turn !== 0 || rankings.includes(0)) return; // Only active player can click cards
 
     // Toggle selection - deselect if already selected
     if (selectedCards.find(c => c.id === card.id)) {
@@ -289,13 +371,13 @@ export default function Home() {
         }
     }
 
-    playCards("player", selectedCards);
+    playCards(0, selectedCards);
     setSelectedCards([]);
   };
 
   // Handle drag end - check if card was dropped on play area (works on mobile & desktop)
   const handleDragEnd = (card, info) => {
-    if (turn !== "player") return;
+    if (turn !== 0 || rankings.includes(0)) return; // Only active player can drag
     
     // Check if card was dropped over the play area
     if (!playAreaRef.current) return;
@@ -363,18 +445,25 @@ export default function Home() {
       }
     }
 
-    playCards("player", cardsToPlay);
+    playCards(0, cardsToPlay);
     setSelectedCards([]);
   };
 
+  // who: 0 = player, 1+ = computer index
   const playCards = (who, cards) => {
     const primaryCard = cards[0];
+    const whoName = getTurnPlayerName(who);
 
-    if (who === "player") {
+    if (who === 0) {
       setPlayerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
       setSelectedCards([]); // Always clear selection when player plays
     } else {
-      setComputerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
+      const computerIndex = who - 1;
+      setComputerDecks((prev) => {
+        const newDecks = [...prev];
+        newDecks[computerIndex] = newDecks[computerIndex].filter((c) => !cards.find(pc => pc.id === c.id));
+        return newDecks;
+      });
     }
 
     // Add the old current card and all but the last played card to discard pile
@@ -417,32 +506,33 @@ export default function Home() {
         setActiveColor(lastCard.color);
     }
 
-    let nextTurn = who === "player" ? "computer" : "player";
+    let nextTurn = getNextTurn(who);
     let nextPenalty = penaltyStack;
     let nextSkipActive = false;
     
     const effect = getCardEffect(primaryCard);
+    const nextPlayerName = getTurnPlayerName(nextTurn);
 
     if (effect) {
          if (primaryCard.num === "Q") {
              if (cards.length === 1) {
                  drawCard(who, 1);
-                 setMessage(`${who === "player" ? playerName : "Computer"} played Queen and drew 1 card.`);
+                 setMessage(`${whoName} played Queen and drew 1 card.`);
              } else {
-                 setMessage(`${who === "player" ? playerName : "Computer"} played Queen Pair!`);
+                 setMessage(`${whoName} played Queen Pair!`);
              }
          } else if (effect.type === "CHANGE_COLOR_ANY") {
-             if (who === "player") {
+             if (who === 0) {
                  setShowColorPicker(true);
                  return; 
              } else {
                  const randomColor = colors[Math.floor(Math.random() * colors.length)];
                  setActiveColor(randomColor);
-                 setMessage(`Computer changed color to ${randomColor}`);
+                 setMessage(`${whoName} changed color to ${randomColor}`);
              }
          } else if (effect.type === "SKIP") {
              nextSkipActive = true;
-             setMessage(`${who === "player" ? "Computer" : playerName} faces a Skip!`);
+             setMessage(`${nextPlayerName} faces a Skip!`);
          } else if (effect.type === "DRAW_SKIP") {
              nextPenalty += (2 * cards.length);
              setMessage(`Penalty increased to ${nextPenalty}!`);
@@ -452,21 +542,51 @@ export default function Home() {
     setPenaltyStack(nextPenalty);
     setSkipActive(nextSkipActive);
 
-    const currentDeckLength = (who === "player" ? playerDeck.length : computerDeck.length) - cards.length;
+    // Get current deck length for the player who just played
+    let currentDeckLength;
+    if (who === 0) {
+      currentDeckLength = playerDeck.length - cards.length;
+    } else {
+      currentDeckLength = computerDecks[who - 1].length - cards.length;
+    }
+    
     if (currentDeckLength === 0) {
         // Check if any played card is a power card - power cards cannot finish the game
         const playedPowerCard = cards.some(card => isPowerCard(card));
         if (playedPowerCard) {
             // Player must draw one card from stack - cannot finish with power card
             drawCard(who, 1);
-            setMessage(`${who === "player" ? playerName : "Computer"} cannot finish with a power card! Drew 1 card.`);
+            setMessage(`${whoName} cannot finish with a power card! Drew 1 card.`);
         } else {
-            setWinner(who);
+            // Player finished! Add to rankings
+            const newRankings = [...rankings, who];
+            setRankings(newRankings);
+            
+            const place = newRankings.length;
+            const placeStr = place === 1 ? '1st' : place === 2 ? '2nd' : place === 3 ? '3rd' : `${place}th`;
+            setMessage(`${whoName} finished ${placeStr}!`);
+            
+            // Check if game is over (only 1 player left)
+            const remainingPlayers = numPlayers - newRankings.length;
+            if (remainingPlayers <= 1) {
+                // Find the last player and add them to rankings
+                for (let i = 0; i < numPlayers; i++) {
+                    if (!newRankings.includes(i)) {
+                        setRankings([...newRankings, i]);
+                        break;
+                    }
+                }
+                setGameOver(true);
+                return;
+            }
+            
+            // Game continues - move to next active player
+            setTurn(getNextActiveTurn(who));
             return;
         }
     }
 
-    setTurn(nextTurn);
+    setTurn(getNextActiveTurn(who));
   };
 
   const handleColorPick = (color) => {
@@ -475,71 +595,79 @@ export default function Home() {
     
     if (isStartingColorPick) {
       // Starting Ace: player chose color, now it's their turn to play
-      setTurn("player");
+      setTurn(0);
       setMessage(`${playerName} chose ${color} as active color. Your turn!`);
       setIsStartingColorPick(false);
     } else {
-      // Normal Ace play: turn goes to computer
-      setTurn("computer");
+      // Normal Ace play: turn goes to next active player
+      setTurn(getNextActiveTurn(0));
       setMessage(`${playerName} changed color to ${color}`);
     }
   };
 
   const handleDrawClick = () => {
-    if (turn !== "player") return;
+    if (turn !== 0) return; // Only player (turn 0) can click draw
+    if (!isPlayerActive(0)) return; // Player already finished
     
     if (skipActive) {
         setMessage("Skipped turn!");
         setSkipActive(false); 
-        setTurn("computer");
+        setTurn(getNextActiveTurn(0));
         return;
     }
     
     if (penaltyStack > 0) {
-        drawCard("player", penaltyStack);
+        drawCard(0, penaltyStack);
         setPenaltyStack(0);
-        setTurn("computer");
+        setTurn(getNextActiveTurn(0));
         setMessage(`You drew ${penaltyStack} cards due to penalty.`);
     } else {
-        drawCard("player", 1);
-        setTurn("computer"); 
+        drawCard(0, 1);
+        setTurn(getNextActiveTurn(0)); 
     }
   };
 
-  // Computer AI
+  // Computer AI - handles all computer players
   useEffect(() => {
-    if (turn === "computer" && gameStart && !winner) {
+    // Check if it's any computer's turn (turn > 0) and they're still active
+    if (turn > 0 && gameStart && !gameOver && computerDecks.length > 0 && isPlayerActive(turn)) {
+      const computerIndex = turn - 1;
+      const currentComputerDeck = computerDecks[computerIndex];
+      const computerName = getComputerName(computerIndex);
+      
+      if (!currentComputerDeck || currentComputerDeck.length === 0) return;
+      
       const timer = setTimeout(() => {
           
         if (skipActive) {
-            const jackCard = computerDeck.find(c => c.num === "J");
+            const jackCard = currentComputerDeck.find(c => c.num === "J");
             if (jackCard) {
-                playCards("computer", [jackCard]);
-                setMessage("Computer countered Skip with a Jack!");
+                playCards(turn, [jackCard]);
+                setMessage(`${computerName} countered Skip with a Jack!`);
             } else {
-                setMessage("Computer skipped turn.");
+                setMessage(`${computerName} skipped turn.`);
                 setSkipActive(false);
-                setTurn("player");
+                setTurn(getNextActiveTurn(turn));
             }
             return;
         }
           
         if (penaltyStack > 0) {
-            const penaltyCard = computerDeck.find(c => c.num === "2");
+            const penaltyCard = currentComputerDeck.find(c => c.num === "2");
             if (penaltyCard) {
-                playCards("computer", [penaltyCard]);
+                playCards(turn, [penaltyCard]);
                 return;
             } else {
-                drawCard("computer", penaltyStack);
+                drawCard(turn, penaltyStack);
                 setPenaltyStack(0);
-                setTurn("player");
-                setMessage("Computer drew cards for penalty.");
+                setTurn(getNextActiveTurn(turn));
+                setMessage(`${computerName} drew cards for penalty.`);
                 return;
             }
         }
 
         // Check validity against current card OR Q pair card (if Q was paired)
-        const validCards = computerDeck.filter(c => {
+        const validCards = currentComputerDeck.filter(c => {
             const validAgainstCurrent = isValidMove(c, currentPlayCard, activeColor);
             const validAgainstQPair = qPairCard && isValidMove(c, qPairCard, qPairCard.color);
             return validAgainstCurrent || validAgainstQPair;
@@ -547,32 +675,58 @@ export default function Home() {
         
         if (validCards.length > 0) {
             const cardToPlay = validCards[Math.floor(Math.random() * validCards.length)];
-            playCards("computer", [cardToPlay]);
+            playCards(turn, [cardToPlay]);
         } else {
-            drawCard("computer", 1);
-            setTurn("player");
-            setMessage("Computer drew a card.");
+            drawCard(turn, 1);
+            setTurn(getNextActiveTurn(turn));
+            setMessage(`${computerName} drew a card.`);
         }
-      }, 1500);
+      }, 2000); // 2 second delay to see computer plays
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turn, gameStart, winner, computerDeck, currentPlayCard, activeColor, penaltyStack, skipActive, qPairCard]);
+  }, [turn, gameStart, gameOver, computerDecks, currentPlayCard, activeColor, penaltyStack, skipActive, qPairCard, numPlayers, rankings]);
 
-  // Check win condition effect
+  // Check win condition effect - safety net
   // Note: Win condition is primarily checked in playCards function
-  // This effect is a safety net but should not trigger for power card scenarios
-  // since playCards handles drawing a card when finishing with power cards
+  // This effect catches any edge cases
   useEffect(() => {
-      if (gameStart && !winner) {
-          // Only check win if current play card is NOT a power card
-          // (power card finishes are handled in playCards with a penalty draw)
-          if (currentPlayCard && !isPowerCard(currentPlayCard)) {
-              if (playerDeck.length === 0) setWinner("player");
-              if (computerDeck.length === 0) setWinner("computer");
+      if (gameStart && !gameOver) {
+          // Check if player finished but not in rankings yet
+          if (playerDeck.length === 0 && !rankings.includes(0) && currentPlayCard && !isPowerCard(currentPlayCard)) {
+              const newRankings = [...rankings, 0];
+              setRankings(newRankings);
+              if (numPlayers - newRankings.length <= 1) {
+                  // Add last player
+                  for (let i = 0; i < numPlayers; i++) {
+                      if (!newRankings.includes(i)) {
+                          setRankings([...newRankings, i]);
+                          break;
+                      }
+                  }
+                  setGameOver(true);
+              }
           }
+          // Check each computer's deck
+          computerDecks.forEach((deck, index) => {
+              const playerIdx = index + 1;
+              if (deck.length === 0 && !rankings.includes(playerIdx) && currentPlayCard && !isPowerCard(currentPlayCard)) {
+                  const newRankings = [...rankings, playerIdx];
+                  setRankings(newRankings);
+                  if (numPlayers - newRankings.length <= 1) {
+                      // Add last player
+                      for (let i = 0; i < numPlayers; i++) {
+                          if (!newRankings.includes(i)) {
+                              setRankings([...newRankings, i]);
+                              break;
+                          }
+                      }
+                      setGameOver(true);
+                  }
+              }
+          });
       }
-  }, [playerDeck, computerDeck, gameStart, winner, currentPlayCard]);
+  }, [playerDeck, computerDecks, gameStart, gameOver, currentPlayCard, rankings, numPlayers]);
 
   // Clean up stale selections - remove any selected cards that are no longer in player's hand
   // Only runs when playerDeck changes (not when selectedCards changes to avoid loops)
@@ -623,9 +777,23 @@ export default function Home() {
               value={gameCardNum}
               onChange={handleGameCardNumChange}
               min="1"
-              max="26"
+              max="13"
               className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
             />
+            <div className="flex items-center gap-2">
+              <label className="text-white font-bold text-sm">Players:</label>
+              <input
+                type="number"
+                value={numPlayers}
+                onChange={handleNumPlayersChange}
+                min="2"
+                max="4"
+                className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base flex-1"
+              />
+            </div>
+            <p className="text-white/70 text-xs text-center">
+              {numPlayers - 1} computer opponent{numPlayers > 2 ? 's' : ''}
+            </p>
           </div>
           <button
             className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 md:py-4 md:px-12 rounded-full transition-all transform hover:scale-105 shadow-xl border-4 border-yellow-600 text-lg md:text-xl"
@@ -636,24 +804,57 @@ export default function Home() {
         </div>
       ) : (
         <div className="w-full h-screen flex flex-col p-2 sm:p-4 relative overflow-visible">
-            {/* Winner Overlay */}
-            {winner && (
+            {/* Game Over / Rankings Overlay */}
+            {gameOver && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
                     <div className="text-center">
                         <h2 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white mb-3 sm:mb-4 drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]">
-                            {winner === "player" ? "YOU WIN!" : "COMPUTER WINS!"}
+                            {rankings[0] === 0 ? "🎉 YOU WIN!" : `${getComputerName(rankings[0] - 1).toUpperCase()} WINS!`}
                         </h2>
-                        <p className="text-white text-sm sm:text-xl mb-3 sm:mb-4">Returning to menu in 5 seconds...</p>
+                        
+                        {/* Rankings List */}
+                        <div className="bg-white/10 rounded-xl p-4 mb-4 backdrop-blur-sm">
+                            <h3 className="text-white font-bold text-lg mb-2">Final Rankings</h3>
+                            {rankings.map((playerIdx, rank) => (
+                                <div key={playerIdx} className={`flex items-center justify-between px-4 py-2 rounded-lg mb-1 ${
+                                    playerIdx === 0 ? 'bg-yellow-500/30' : 'bg-white/5'
+                                }`}>
+                                    <span className="text-white font-bold">
+                                        {rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `${rank + 1}.`}
+                                    </span>
+                                    <span className={`text-white ${playerIdx === 0 ? 'font-bold' : ''}`}>
+                                        {playerIdx === 0 ? playerName : getComputerName(playerIdx - 1)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <p className="text-white text-sm sm:text-xl mb-3 sm:mb-4">Returning to menu in 6 seconds...</p>
                         <button 
                             onClick={() => {
                                 setGameStart(false);
-                                setWinner(null);
+                                setGameOver(false);
+                                setRankings([]);
                             }}
                             className="bg-white text-black px-4 sm:px-6 py-2 sm:py-3 rounded-full font-bold hover:bg-gray-200 text-sm sm:text-base"
                         >
                             Return Now
                         </button>
                     </div>
+                </div>
+            )}
+            
+            {/* In-game Rankings Banner (shows during game when players finish) */}
+            {rankings.length > 0 && !gameOver && (
+                <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-30 bg-black/60 backdrop-blur-sm rounded-full px-4 py-2">
+                    <span className="text-white text-xs sm:text-sm">
+                        Finished: {rankings.map((idx, i) => (
+                            <span key={idx} className="mx-1">
+                                {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} 
+                                {idx === 0 ? playerName : getComputerName(idx - 1)}
+                            </span>
+                        ))}
+                    </span>
                 </div>
             )}
 
@@ -679,59 +880,172 @@ export default function Home() {
                 </div>
             )}
 
-            {/* Game Rules Panel - Added Here */}
-            <GameRules isDarkTheme={isDarkTheme} />
-
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0 mb-2 sm:mb-4">
-            {/* Active Color Display - Enhanced */}
-            <div className="flex items-center bg-black/40 backdrop-blur-md px-3 sm:px-6 py-2 sm:py-3 rounded-full border border-white/20 shadow-lg">
-                <span className="text-white font-bold mr-2 sm:mr-3 text-sm sm:text-lg hidden sm:inline">ACTIVE SUIT</span>
-                <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-xl sm:text-3xl bg-white shadow-inner ${
-                    isRedColor(activeColor) ? "text-red-600" : "text-black"
-                }`}>
-                    {activeColor}
+          {/* Header - Mobile: top row with suit, rules, theme; Desktop: horizontal layout */}
+          <div className="mb-2 sm:mb-4">
+            {/* Mobile Top Bar */}
+            <div className="flex sm:hidden justify-between items-center mb-2">
+              {/* Theme Toggle & Active Color - Mobile Left */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleTheme}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-sm ${
+                    isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
+                  }`}
+                >
+                  {isDarkTheme ? "🌙" : "☀️"}
+                </button>
+                <div className="flex items-center bg-black/40 backdrop-blur-md px-3 py-2 rounded-full border border-white/20 shadow-lg">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xl bg-white shadow-inner ${
+                        isRedColor(activeColor) ? "text-red-600" : "text-black"
+                    }`}>
+                        {activeColor}
+                    </div>
                 </div>
+              </div>
+              
+              {/* Rules - Mobile Right */}
+              <GameRules isDarkTheme={isDarkTheme} />
             </div>
+            
+            {/* Mobile Message */}
+            <div className="flex sm:hidden justify-center">
+              <div className="text-xs font-bold text-white bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 shadow-lg text-center max-w-[250px] truncate">
+                  {message || (turn === 0 ? "Your Turn" : `${getComputerName(turn - 1)}'s Turn`)}
+              </div>
+            </div>
+            
+            {/* Desktop Header */}
+            <div className="hidden sm:flex justify-between items-center">
+              {/* Active Color Display - Desktop */}
+              <div className="flex items-center bg-black/40 backdrop-blur-md px-6 py-3 rounded-full border border-white/20 shadow-lg">
+                  <span className="text-white font-bold mr-3 text-lg">ACTIVE SUIT</span>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-3xl bg-white shadow-inner ${
+                      isRedColor(activeColor) ? "text-red-600" : "text-black"
+                  }`}>
+                      {activeColor}
+                  </div>
+              </div>
 
-            <div className="text-xs sm:text-lg font-bold text-white bg-black/40 backdrop-blur-md px-4 sm:px-8 py-2 sm:py-3 rounded-full border border-white/20 shadow-lg text-center max-w-[200px] sm:max-w-none sm:min-w-[300px] truncate">
-                {message || (turn === "player" ? "Your Turn" : "Computer's Turn")}
+              <div className="text-lg font-bold text-white bg-black/40 backdrop-blur-md px-8 py-3 rounded-full border border-white/20 shadow-lg text-center min-w-[300px] truncate">
+                  {message || (turn === 0 ? "Your Turn" : `${getComputerName(turn - 1)}'s Turn`)}
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <GameRules isDarkTheme={isDarkTheme} />
+                <button
+                  onClick={toggleTheme}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-base ${
+                    isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
+                  }`}
+                >
+                  {isDarkTheme ? "🌙" : "☀️"}
+                </button>
+              </div>
             </div>
-            <button
-              onClick={toggleTheme}
-              className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-sm sm:text-base ${
-                isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
-              }`}
-            >
-              {isDarkTheme ? "🌙" : "☀️"}
-            </button>
           </div>
 
-          {/* Computer Area */}
-          <div className="flex-shrink-0 flex flex-col items-center justify-center py-1 sm:py-2">
-            <div className="flex -space-x-8 sm:-space-x-10 md:-space-x-12">
-              <AnimatePresence>
-                {computerDeck.map((card, index) => (
-                  <Card
-                    key={card.id}
-                    card={{...card, color: '?', num: '?'}} // Hide computer cards
-                    index={index}
-                    className="border-2 border-white shadow-lg"
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
-            <div className="mt-1 sm:mt-2 text-xs sm:text-base font-bold text-white bg-black/30 px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm">
-                Computer ({computerDeck.length})
-            </div>
-          </div>
+          {/* Game Table Layout - Computers around, Player at bottom */}
+          <div className="flex-1 flex flex-col relative">
+            
+            {/* Top Computer (Computer 1 - always shown if exists) */}
+            {computerDecks.length >= 1 && (
+              <div className="flex justify-center py-1 sm:py-2">
+                {(() => {
+                  const computerIdx = 0;
+                  const playerIdx = 1;
+                  const deck = computerDecks[computerIdx];
+                  const hasFinished = rankings.includes(playerIdx);
+                  const finishPlace = rankings.indexOf(playerIdx);
+                  
+                  return (
+                    <div className={`flex flex-col items-center transition-all ${
+                      hasFinished ? 'opacity-50' : ''
+                    } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''}`}>
+                      {hasFinished ? (
+                        <div className="flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-green-500/20 rounded-lg border-2 border-green-400">
+                          <span className="text-2xl sm:text-4xl">
+                            {finishPlace === 0 ? '🥇' : finishPlace === 1 ? '🥈' : '🥉'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex -space-x-8 sm:-space-x-10">
+                          <AnimatePresence>
+                            {deck.map((card, cardIndex) => (
+                              <Card
+                                key={card.id}
+                                card={{...card, color: '?', num: '?'}}
+                                index={cardIndex}
+                                className="border-2 border-white shadow-lg"
+                              />
+                            ))}
+                          </AnimatePresence>
+                        </div>
+                      )}
+                      <div className={`mt-1 text-xs sm:text-sm font-bold text-white px-2 sm:px-3 py-0.5 rounded-full backdrop-blur-sm ${
+                        hasFinished ? 'bg-green-500/30' : turn === playerIdx ? 'bg-yellow-500/50' : 'bg-black/30'
+                      }`}>
+                          {hasFinished ? '✓ ' : ''}{getComputerName(computerIdx)} {hasFinished ? '' : `(${deck.length})`}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
-          {/* Play Area */}
-          <div className="flex-1 flex items-center justify-center gap-12 sm:gap-12 md:gap-24 relative">
+            {/* Middle Row: Left Computer, Play Area, Right Computer */}
+            <div className="flex-1 flex items-center justify-center">
+              
+              {/* Left Computer (Computer 2 - if 3+ players) */}
+              {computerDecks.length >= 2 && (
+                <div className="flex-shrink-0 px-2">
+                  {(() => {
+                    const computerIdx = 1;
+                    const playerIdx = 2;
+                    const deck = computerDecks[computerIdx];
+                    const hasFinished = rankings.includes(playerIdx);
+                    const finishPlace = rankings.indexOf(playerIdx);
+                    
+                    return (
+                      <div className={`flex flex-col items-center transition-all ${
+                        hasFinished ? 'opacity-50' : ''
+                      } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''}`}>
+                        {hasFinished ? (
+                          <div className="flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-green-500/20 rounded-lg border-2 border-green-400">
+                            <span className="text-xl sm:text-2xl">
+                              {finishPlace === 0 ? '🥇' : finishPlace === 1 ? '🥈' : '🥉'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col -space-y-12 sm:-space-y-14">
+                            <AnimatePresence>
+                              {deck.slice(0, 6).map((card, cardIndex) => (
+                                <Card
+                                  key={card.id}
+                                  card={{...card, color: '?', num: '?'}}
+                                  index={cardIndex}
+                                  className="border-2 border-white shadow-lg"
+                                />
+                              ))}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                        <div className={`mt-1 text-[10px] sm:text-xs font-bold text-white px-2 py-0.5 rounded-full backdrop-blur-sm ${
+                          hasFinished ? 'bg-green-500/30' : turn === playerIdx ? 'bg-yellow-500/50' : 'bg-black/30'
+                        }`}>
+                            {hasFinished ? '✓ ' : ''}{getComputerName(computerIdx)} {hasFinished ? '' : `(${deck.length})`}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Play Area - Center */}
+              <div className="flex items-center justify-center gap-8 sm:gap-12 md:gap-16 relative">
             {/* Draw/Pass Pile */}
             <div 
                 onClick={handleDrawClick}
-                className={`relative w-20 h-28 sm:w-28 sm:h-40 md:w-36 md:h-52 bg-blue-900 rounded-lg sm:rounded-xl border-2 sm:border-4 border-white shadow-2xl cursor-pointer hover:scale-105 transition-all transform flex items-center justify-center group ${turn !== "player" ? "opacity-50 cursor-not-allowed grayscale" : "hover:shadow-blue-500/50"} ${deckRecycled ? "ring-2 sm:ring-4 ring-yellow-400 ring-opacity-75" : ""}`}
+                className={`relative w-20 h-28 sm:w-28 sm:h-40 md:w-36 md:h-52 bg-blue-900 rounded-lg sm:rounded-xl border-2 sm:border-4 border-white shadow-2xl cursor-pointer hover:scale-105 transition-all transform flex items-center justify-center group ${turn !== 0 ? "opacity-50 cursor-not-allowed grayscale" : "hover:shadow-blue-500/50"} ${deckRecycled ? "ring-2 sm:ring-4 ring-yellow-400 ring-opacity-75" : ""}`}
                 style={{
                     backgroundImage: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
                 }}
@@ -861,10 +1175,58 @@ export default function Home() {
                     </AnimatePresence>
                 </div>
             </div>
-
+              </div>
+              
+              {/* Right Computer (Computer 3 - if 4 players) */}
+              {computerDecks.length >= 3 && (
+                <div className="flex-shrink-0 px-2">
+                  {(() => {
+                    const computerIdx = 2;
+                    const playerIdx = 3;
+                    const deck = computerDecks[computerIdx];
+                    const hasFinished = rankings.includes(playerIdx);
+                    const finishPlace = rankings.indexOf(playerIdx);
+                    
+                    return (
+                      <div className={`flex flex-col items-center transition-all ${
+                        hasFinished ? 'opacity-50' : ''
+                      } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''}`}>
+                        {hasFinished ? (
+                          <div className="flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-green-500/20 rounded-lg border-2 border-green-400">
+                            <span className="text-xl sm:text-2xl">
+                              {finishPlace === 0 ? '🥇' : finishPlace === 1 ? '🥈' : '🥉'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col -space-y-12 sm:-space-y-14">
+                            <AnimatePresence>
+                              {deck.slice(0, 6).map((card, cardIndex) => (
+                                <Card
+                                  key={card.id}
+                                  card={{...card, color: '?', num: '?'}}
+                                  index={cardIndex}
+                                  className="border-2 border-white shadow-lg"
+                                />
+                              ))}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                        <div className={`mt-1 text-[10px] sm:text-xs font-bold text-white px-2 py-0.5 rounded-full backdrop-blur-sm ${
+                          hasFinished ? 'bg-green-500/30' : turn === playerIdx ? 'bg-yellow-500/50' : 'bg-black/30'
+                        }`}>
+                            {hasFinished ? '✓ ' : ''}{getComputerName(computerIdx)} {hasFinished ? '' : `(${deck.length})`}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              
+            </div>
+            
             {/* Play Selected Button - Only show for Q pairing (2 cards) */}
-            {selectedCards.length === 2 && turn === "player" && (
-                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-12 sm:translate-y-20 z-20">
+            {selectedCards.length === 2 && turn === 0 && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
                     <button
                         onClick={handlePlaySelected}
                         className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-400 hover:to-green-600 text-white font-bold py-2 px-4 sm:py-3 sm:px-8 rounded-full shadow-xl animate-bounce border-2 border-green-300 text-sm sm:text-lg"
@@ -876,9 +1238,13 @@ export default function Home() {
           </div>
 
           {/* Player Area */}
-          <div className="flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4 overflow-visible">
-            <div className="mb-1 sm:mb-2 text-xs sm:text-base font-bold text-white bg-black/30 px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm">
-                {playerName || "Player"} ({playerDeck.length})
+          <div className={`flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4 overflow-visible transition-all ${
+            rankings.includes(0) ? 'opacity-60' : ''
+          } ${turn === 0 && !rankings.includes(0) ? 'ring-2 ring-yellow-400 rounded-xl p-2 mx-2 bg-yellow-400/10' : ''}`}>
+            <div className={`mb-1 sm:mb-2 text-xs sm:text-base font-bold text-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm ${
+              rankings.includes(0) ? 'bg-green-500/30' : turn === 0 ? 'bg-yellow-500/50' : 'bg-black/30'
+            }`}>
+                {rankings.includes(0) ? `✓ ${rankings.indexOf(0) === 0 ? '🥇' : rankings.indexOf(0) === 1 ? '🥈' : '🥉'} ` : ''}{playerName || "Player"} {!rankings.includes(0) && `(${playerDeck.length})`}
             </div>
             <div className="flex -space-x-6 sm:-space-x-8 overflow-visible p-2 sm:p-4 max-w-full min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-12">
               <AnimatePresence>
@@ -901,7 +1267,7 @@ export default function Home() {
                   return (
                     <motion.div
                       key={card.id}
-                      drag={turn === "player"}
+                      drag={turn === 0 && !rankings.includes(0)}
                       dragSnapToOrigin
                       dragElastic={1}
                       dragMomentum={false}
