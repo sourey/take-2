@@ -26,6 +26,7 @@ const cardNums = [
 ];
 
 const STORAGE_KEY = "take2-game-state";
+const HIGH_SCORE_KEY = "take2-high-score";
 
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
@@ -60,6 +61,11 @@ export default function Home() {
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
   
+  // Move tracking
+  const [playerMoves, setPlayerMoves] = useState([]); // Array of move counts for each player [player, comp1, comp2, comp3]
+  const [finishMoves, setFinishMoves] = useState({}); // { playerIndex: moveCount } when they finished
+  const [highScore, setHighScore] = useState(null); // Lowest moves to finish 1st (persistent)
+  
   // Ref for the play area (drop zone)
   const playAreaRef = useRef(null);
 
@@ -73,6 +79,16 @@ export default function Home() {
 
   // Initialize game - load from storage or create new deck
   useEffect(() => {
+    // Always load high score (persistent across games)
+    try {
+      const savedHighScore = localStorage.getItem(HIGH_SCORE_KEY);
+      if (savedHighScore) {
+        setHighScore(JSON.parse(savedHighScore));
+      }
+    } catch (e) {
+      console.error("Failed to load high score:", e);
+    }
+    
     // Try to load saved game state
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -101,6 +117,8 @@ export default function Home() {
         setGameOver(state.gameOver || false);
         setSkipActive(state.skipActive || false);
         setQPairCard(state.qPairCard || null);
+        setPlayerMoves(state.playerMoves || []);
+        setFinishMoves(state.finishMoves || {});
         setIsLoaded(true);
         return;
       }
@@ -148,6 +166,8 @@ export default function Home() {
       gameOver,
       skipActive,
       qPairCard,
+      playerMoves,
+      finishMoves,
     };
 
     try {
@@ -179,6 +199,8 @@ export default function Home() {
     gameOver,
     skipActive,
     qPairCard,
+    playerMoves,
+    finishMoves,
   ]);
 
   // New Game - clear saved state and reset to menu
@@ -222,6 +244,8 @@ export default function Home() {
     setDeckRecycled(false);
     setQPairCard(null);
     setSelectedCards([]);
+    setPlayerMoves([]);
+    setFinishMoves({});
   };
 
   // Rankings Effect: Confetti when player finishes first
@@ -346,6 +370,9 @@ export default function Home() {
       setDeckRecycled(false);
       setQPairCard(null);
       setVisibleStack([]); // Reset visual stack
+      // Initialize move tracking: [player, comp1, comp2, comp3...]
+      setPlayerMoves(Array(numPlayers).fill(0));
+      setFinishMoves({});
     }
   };
 
@@ -422,9 +449,11 @@ export default function Home() {
   // Helper to get computer name
   const getComputerName = (index) => computerNames[index] || `Bot ${index + 1}`;
 
-  // Power cards that cannot be paired with Q
-  const POWER_CARD_NUMS = ["A", "2", "J", "K"];
-  const isNormalCard = (c) => !POWER_CARD_NUMS.includes(c.num) && c.num !== "Q";
+  // Power cards: A, 2, J, Q (K has no power - it's a normal card)
+  const POWER_CARD_NUMS = ["A", "2", "J", "Q"];
+  const isNormalCard = (c) => !POWER_CARD_NUMS.includes(c.num);
+  // Cards that can be paired with Q: any normal card of same color (includes K)
+  const canPairWithQ = (c) => isNormalCard(c);
 
   const handleCardClick = (card) => {
     if (turn !== 0 || rankings.includes(0)) return; // Only active player can click cards
@@ -446,11 +475,11 @@ export default function Home() {
     if (selectedCards.length === 1) {
       const firstCard = selectedCards[0];
       
-      // Only Q can be paired, and only with NORMAL cards of same color
+      // Only Q can be paired, and only with cards that can pair with Q (normal cards + K)
       // Q must be the first selected card
       const isQueenPair = firstCard.num === "Q" && 
                           firstCard.color === card.color && 
-                          isNormalCard(card);
+                          canPairWithQ(card);
       
       if (isQueenPair) {
         setSelectedCards([firstCard, card]);
@@ -502,14 +531,14 @@ export default function Home() {
             return;
         }
 
-        // Only Q can be paired with a normal card of same color
+        // Only Q can be paired with a card that can pair with Q (normal cards + K)
         const secondCard = selectedCards[1];
         const isValidQueenPair = firstCard.num === "Q" && 
                                   firstCard.color === secondCard.color && 
-                                  isNormalCard(secondCard);
+                                  canPairWithQ(secondCard);
 
         if (!isValidQueenPair) {
-             setMessage("Only Q can be paired with a normal card of same color!");
+             setMessage("Only Q can be paired with same color card (including K)!");
              return;
         }
     }
@@ -580,10 +609,10 @@ export default function Home() {
       const secondCard = cardsToPlay[1];
       const isValidQueenPair = firstCard.num === "Q" && 
                                 firstCard.color === secondCard.color && 
-                                isNormalCard(secondCard);
+                                canPairWithQ(secondCard);
 
       if (!isValidQueenPair) {
-        setMessage("Only Q can be paired with a normal card of same color!");
+        setMessage("Only Q can be paired with same color card (including K)!");
         return;
       }
     }
@@ -596,6 +625,13 @@ export default function Home() {
   const playCards = (who, cards) => {
     const primaryCard = cards[0];
     const whoName = getTurnPlayerName(who);
+    
+    // Increment move count for this player
+    setPlayerMoves(prev => {
+      const newMoves = [...prev];
+      newMoves[who] = (newMoves[who] || 0) + 1;
+      return newMoves;
+    });
 
     if (who === 0) {
       setPlayerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
@@ -739,9 +775,32 @@ export default function Home() {
             const newRankings = [...rankings, who];
             setRankings(newRankings);
             
+            // Record the moves this player took to finish (current moves + 1 for this play)
+            const finishMoveCount = (playerMoves[who] || 0) + 1;
+            setFinishMoves(prev => ({ ...prev, [who]: finishMoveCount }));
+            
             const place = newRankings.length;
             const placeStr = place === 1 ? '1st' : place === 2 ? '2nd' : place === 3 ? '3rd' : `${place}th`;
-            setMessage(`${whoName} finished ${placeStr}!`);
+            setMessage(`${whoName} finished ${placeStr} in ${finishMoveCount} moves!`);
+            
+            // Update high score if this is 1st place and beats the record
+            if (place === 1) {
+                if (highScore === null || finishMoveCount < highScore.moves) {
+                    const newHighScore = {
+                        moves: finishMoveCount,
+                        name: whoName,
+                        date: new Date().toLocaleDateString(),
+                        numPlayers: numPlayers,
+                        startingCards: gameCardNum
+                    };
+                    setHighScore(newHighScore);
+                    try {
+                        localStorage.setItem(HIGH_SCORE_KEY, JSON.stringify(newHighScore));
+                    } catch (e) {
+                        console.error("Failed to save high score:", e);
+                    }
+                }
+            }
             
             // Check if game is over (only 1 player left)
             const remainingPlayers = numPlayers - newRankings.length;
@@ -918,14 +977,13 @@ export default function Home() {
       }
     }
     
-    // STRATEGY 4: Queen pairing - try to pair Q with same-color normal card
+    // STRATEGY 4: Queen pairing - try to pair Q with same-color normal card (K is normal)
     if (queens.length > 0) {
       for (const queen of queens) {
         const pairableCards = hand.filter(c => 
           c.id !== queen.id && 
           c.color === queen.color && 
-          !isPowerCard(c) && 
-          c.num !== "Q"
+          !isPowerCard(c) // Any non-power card (K included since it's not a power card)
         );
         if (pairableCards.length > 0) {
           // Found a pair! Play Q + normal card
@@ -1137,13 +1195,13 @@ export default function Home() {
               className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
             />
             <div className="flex items-center gap-2">
-              <label className="text-white font-bold text-sm">Players:</label>
               <input
                 type="number"
                 value={numPlayers}
                 onChange={handleNumPlayersChange}
                 min="2"
                 max="4"
+                placeholder="Number of players"
                 className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base flex-1"
               />
             </div>
@@ -1151,6 +1209,24 @@ export default function Home() {
               {numPlayers - 1} computer opponent{numPlayers > 2 ? 's' : ''}
             </p>
           </div>
+          {/* High Score Display */}
+          {highScore && (
+            <div className="mb-4 bg-gradient-to-r from-yellow-600/30 to-yellow-400/30 rounded-xl px-6 py-3 border border-yellow-500/50 text-center">
+              <div className="text-yellow-300 font-bold text-lg">🏆 Best Record</div>
+              <div className="text-white text-2xl font-bold">{highScore.moves} moves</div>
+              <div className="text-yellow-200/70 text-sm">by {highScore.name}</div>
+              <button 
+                onClick={() => {
+                  setHighScore(null);
+                  try { localStorage.removeItem(HIGH_SCORE_KEY); } catch(e) {}
+                }}
+                className="text-xs text-white/40 hover:text-white/60 mt-1 underline"
+              >
+                Clear Record
+              </button>
+            </div>
+          )}
+          
           <button
             className={`font-bold py-3 px-8 md:py-4 md:px-12 rounded-full transition-all transform shadow-xl border-4 text-lg md:text-xl ${
               assetsLoaded 
@@ -1176,10 +1252,25 @@ export default function Home() {
             {/* Game Over / Rankings Overlay */}
             {gameOver && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
-                    <div className="text-center">
+                    <div className="text-center max-w-md">
                         <h2 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white mb-3 sm:mb-4 drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]">
                             {rankings[0] === 0 ? "🎉 YOU WIN!" : `${getComputerName(rankings[0] - 1).toUpperCase()} WINS!`}
                         </h2>
+                        
+                        {/* High Score Banner */}
+                        {highScore && (
+                            <div className="bg-gradient-to-r from-yellow-600/40 to-yellow-400/40 rounded-lg px-4 py-2 mb-3 border border-yellow-500/50">
+                                <span className="text-yellow-300 text-sm font-bold">🏆 Best Record: {highScore.moves} moves</span>
+                                <span className="text-yellow-200/70 text-xs ml-2">by {highScore.name}</span>
+                            </div>
+                        )}
+                        
+                        {/* New Record Celebration */}
+                        {highScore && finishMoves[rankings[0]] === highScore.moves && (
+                            <div className="bg-gradient-to-r from-green-500/50 to-emerald-500/50 rounded-lg px-4 py-2 mb-3 border border-green-400 animate-pulse">
+                                <span className="text-white font-bold">🎊 NEW RECORD! 🎊</span>
+                            </div>
+                        )}
                         
                         {/* Rankings List */}
                         <div className="bg-white/10 rounded-xl p-4 mb-4 backdrop-blur-sm">
@@ -1188,11 +1279,14 @@ export default function Home() {
                                 <div key={playerIdx} className={`flex items-center justify-between px-4 py-2 rounded-lg mb-1 ${
                                     playerIdx === 0 ? 'bg-yellow-500/30' : 'bg-white/5'
                                 }`}>
-                                    <span className="text-white font-bold">
+                                    <span className="text-white font-bold w-8">
                                         {rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `${rank + 1}.`}
                                     </span>
-                                    <span className={`text-white ${playerIdx === 0 ? 'font-bold' : ''}`}>
+                                    <span className={`text-white flex-1 text-left ${playerIdx === 0 ? 'font-bold' : ''}`}>
                                         {playerIdx === 0 ? playerName : getComputerName(playerIdx - 1)}
+                                    </span>
+                                    <span className="text-white/70 text-sm">
+                                        {finishMoves[playerIdx] ? `${finishMoves[playerIdx]} moves` : '-'}
                                     </span>
                                 </div>
                             ))}
@@ -1216,6 +1310,7 @@ export default function Home() {
                             <span key={idx} className="mx-1">
                                 {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} 
                                 {idx === 0 ? playerName : getComputerName(idx - 1)}
+                                <span className="text-white/60 text-xs ml-1">({finishMoves[idx]} moves)</span>
                             </span>
                         ))}
                     </span>
@@ -1617,10 +1712,16 @@ export default function Home() {
           <div className={`flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4 overflow-visible transition-all ${
             rankings.includes(0) ? 'opacity-60' : ''
           } ${turn === 0 && !rankings.includes(0) ? 'ring-2 ring-yellow-400 rounded-xl p-2 mx-2 bg-yellow-400/10' : ''}`}>
-            <div className={`mb-1 sm:mb-2 text-xs sm:text-base font-bold text-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm ${
-              rankings.includes(0) ? 'bg-green-500/30' : turn === 0 ? 'bg-yellow-500/50' : 'bg-black/30'
-            }`}>
-                {rankings.includes(0) ? `✓ ${rankings.indexOf(0) === 0 ? '🥇' : rankings.indexOf(0) === 1 ? '🥈' : '🥉'} ` : ''}{playerName || "Player"} {!rankings.includes(0) && `(${playerDeck.length})`}
+            <div className="flex items-center gap-2 mb-1 sm:mb-2">
+              <div className={`text-xs sm:text-base font-bold text-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm ${
+                rankings.includes(0) ? 'bg-green-500/30' : turn === 0 ? 'bg-yellow-500/50' : 'bg-black/30'
+              }`}>
+                  {rankings.includes(0) ? `✓ ${rankings.indexOf(0) === 0 ? '🥇' : rankings.indexOf(0) === 1 ? '🥈' : '🥉'} ` : ''}{playerName || "Player"} {!rankings.includes(0) && `(${playerDeck.length})`}
+              </div>
+              {/* Move Counter */}
+              <div className="text-[10px] sm:text-xs text-white/70 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  {playerMoves[0] || 0} moves
+              </div>
             </div>
             <div className="flex -space-x-6 sm:-space-x-8 overflow-visible p-2 sm:p-4 max-w-full min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-12">
               <AnimatePresence>
@@ -1630,12 +1731,12 @@ export default function Home() {
                   const isJack = card.num === 'J';
                   const highlightSkip = skipActive && isJack;
                   
-                  // Suggest Pair - ONLY for Q + same color NORMAL card
+                  // Suggest Pair - Q can pair with same color cards (normal cards + K)
                   let highlightPair = false;
                   if (selectedCards.length === 1 && !isSelected) {
                       const first = selectedCards[0];
-                      // Only Q can pair, and only with normal cards (not A, 2, J, K, Q) of same color
-                      if (first.num === "Q" && first.color === card.color && isNormalCard(card)) {
+                      // Q can pair with normal cards + K of same color
+                      if (first.num === "Q" && first.color === card.color && canPairWithQ(card)) {
                           highlightPair = true;
                       }
                   }
