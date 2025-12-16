@@ -599,9 +599,17 @@ export default function Home() {
       setMessage(`${playerName} chose ${color} as active color. Your turn!`);
       setIsStartingColorPick(false);
     } else {
-      // Normal Ace play: turn goes to next active player
+      // Normal Ace play: check if player tried to finish with Ace (power card)
+      // Player deck has already been updated when the Ace was played
+      if (playerDeck.length === 0) {
+        // Player cannot finish with Ace - must draw 1 card
+        drawCard(0, 1);
+        setMessage(`${playerName} cannot finish with Ace! Drew 1 card.`);
+      } else {
+        setMessage(`${playerName} changed color to ${color}`);
+      }
+      // Turn goes to next active player
       setTurn(getNextActiveTurn(0));
-      setMessage(`${playerName} changed color to ${color}`);
     }
   };
 
@@ -993,7 +1001,7 @@ export default function Home() {
             )}
 
             {/* Middle Row: Left Computer, Play Area, Right Computer */}
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center sm:gap-16 md:gap-24 lg:gap-32">
               
               {/* Left Computer (Computer 2 - if 3+ players) */}
               {computerDecks.length >= 2 && (
