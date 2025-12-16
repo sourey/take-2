@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { shuffleDeck, isRedColor } from "@/utils/utils";
 import { isValidMove, getCardEffect, checkWinCondition, isPowerCard } from "@/utils/rule";
-import { Card } from "./components/Card";
+import { Card, preloadCards } from "./components/Card";
 import { GameRules } from "./components/GameRules"; // Import GameRules component
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
@@ -25,6 +25,8 @@ const cardNums = [
   "K",
 ];
 
+const STORAGE_KEY = "take2-game-state";
+
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
   const [drawPile, setDrawPile] = useState([]); // Remaining cards to draw
@@ -36,6 +38,8 @@ export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [gameCardNum, setGameCardNum] = useState(5);
   const [numPlayers, setNumPlayers] = useState(4); // Total players (1 human + N-1 computers)
+  const [isLoaded, setIsLoaded] = useState(false); // Track if we've loaded from storage
+  const [assetsLoaded, setAssetsLoaded] = useState(false); // Track if card assets are cached
   
   // Cool names for computer opponents
   const computerNames = ["Ace", "Shadow", "Blaze"];
@@ -59,8 +63,52 @@ export default function Home() {
   // Ref for the play area (drop zone)
   const playAreaRef = useRef(null);
 
-  // Initialize game
+  // Preload card assets on mount
   useEffect(() => {
+    preloadCards().then(() => {
+      console.log("Card assets preloaded and cached");
+      setAssetsLoaded(true);
+    });
+  }, []);
+
+  // Initialize game - load from storage or create new deck
+  useEffect(() => {
+    // Try to load saved game state
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const state = JSON.parse(saved);
+        // Restore all game state
+        setDeck(state.deck || []);
+        setDrawPile(state.drawPile || []);
+        setDiscardPile(state.discardPile || []);
+        setVisibleStack(state.visibleStack || []);
+        setGameStart(state.gameStart || false);
+        setPlayerDeck(state.playerDeck || []);
+        setComputerDecks(state.computerDecks || []);
+        setPlayerName(state.playerName || "");
+        setGameCardNum(state.gameCardNum || 5);
+        setNumPlayers(state.numPlayers || 4);
+        setCurrentPlayCard(state.currentPlayCard || null);
+        setActiveColor(state.activeColor || null);
+        setIsDarkTheme(state.isDarkTheme !== undefined ? state.isDarkTheme : true);
+        setTurn(state.turn || 0);
+        setMessage(state.message || "");
+        setPenaltyStack(state.penaltyStack || 0);
+        setShowColorPicker(state.showColorPicker || false);
+        setIsStartingColorPick(state.isStartingColorPick || false);
+        setRankings(state.rankings || []);
+        setGameOver(state.gameOver || false);
+        setSkipActive(state.skipActive || false);
+        setQPairCard(state.qPairCard || null);
+        setIsLoaded(true);
+        return;
+      }
+    } catch (e) {
+      console.error("Failed to load game state:", e);
+    }
+
+    // No saved state - create fresh deck
     const initialDeck = [];
     for (let i = 0; i < colors.length; i++) {
       for (let j = 0; j < cardNums.length; j++) {
@@ -70,7 +118,111 @@ export default function Home() {
     }
     shuffleDeck(initialDeck);
     setDeck(initialDeck);
+    setIsLoaded(true);
   }, []);
+
+  // Save game state to localStorage whenever it changes
+  useEffect(() => {
+    if (!isLoaded) return; // Don't save until we've loaded
+
+    const state = {
+      deck,
+      drawPile,
+      discardPile,
+      visibleStack,
+      gameStart,
+      playerDeck,
+      computerDecks,
+      playerName,
+      gameCardNum,
+      numPlayers,
+      currentPlayCard,
+      activeColor,
+      isDarkTheme,
+      turn,
+      message,
+      penaltyStack,
+      showColorPicker,
+      isStartingColorPick,
+      rankings,
+      gameOver,
+      skipActive,
+      qPairCard,
+    };
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error("Failed to save game state:", e);
+    }
+  }, [
+    isLoaded,
+    deck,
+    drawPile,
+    discardPile,
+    visibleStack,
+    gameStart,
+    playerDeck,
+    computerDecks,
+    playerName,
+    gameCardNum,
+    numPlayers,
+    currentPlayCard,
+    activeColor,
+    isDarkTheme,
+    turn,
+    message,
+    penaltyStack,
+    showColorPicker,
+    isStartingColorPick,
+    rankings,
+    gameOver,
+    skipActive,
+    qPairCard,
+  ]);
+
+  // New Game - clear saved state and reset to menu
+  const handleNewGame = () => {
+    // Clear localStorage
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      console.error("Failed to clear game state:", e);
+    }
+
+    // Create fresh deck
+    const initialDeck = [];
+    for (let i = 0; i < colors.length; i++) {
+      for (let j = 0; j < cardNums.length; j++) {
+        const uniqueId = `${i}-${j}-${Math.random().toString(36).substr(2, 9)}`;
+        initialDeck.push({ id: uniqueId, color: colors[i], num: cardNums[j] });
+      }
+    }
+    shuffleDeck(initialDeck);
+
+    // Reset all state
+    setDeck(initialDeck);
+    setDrawPile([]);
+    setDiscardPile([]);
+    setVisibleStack([]);
+    setGameStart(false);
+    setPlayerDeck([]);
+    setComputerDecks([]);
+    // Keep playerName for convenience
+    setCurrentPlayCard(null);
+    setActiveColor(null);
+    setTurn(0);
+    setMessage("");
+    setPenaltyStack(0);
+    setShowColorPicker(false);
+    setIsStartingColorPick(false);
+    setRankings([]);
+    setGameOver(false);
+    setSkipActive(false);
+    setDeckRecycled(false);
+    setQPairCard(null);
+    setSelectedCards([]);
+  };
 
   // Rankings Effect: Confetti when player finishes first
   useEffect(() => {
@@ -85,21 +237,12 @@ export default function Home() {
     }
   }, [rankings]);
 
-  // Game Over Effect: Return to menu after showing results
+  // Game Over Effect: Just show confetti, don't auto-return (use New Game button)
   useEffect(() => {
-    if (gameOver) {
-      const timer = setTimeout(() => {
-        setGameStart(false);
-        setGameOver(false);
-        setRankings([]);
-        setPlayerDeck([]);
-        setComputerDecks([]);
-        setMessage("");
-      }, 6000);
-
-      return () => clearTimeout(timer);
+    if (gameOver && rankings.length > 0 && rankings[0] !== 0) {
+      // Opponent won - no confetti (confetti only for player winning, handled in rankings effect)
     }
-  }, [gameOver]);
+  }, [gameOver, rankings]);
   
   // Helper to check if a player is still in the game
   const isPlayerActive = (playerIndex) => {
@@ -524,11 +667,45 @@ export default function Home() {
          } else if (effect.type === "CHANGE_COLOR_ANY") {
              if (who === 0) {
                  setShowColorPicker(true);
-                 return; 
+                 return;
              } else {
-                 const randomColor = colors[Math.floor(Math.random() * colors.length)];
-                 setActiveColor(randomColor);
-                 setMessage(`${whoName} changed color to ${randomColor}`);
+                 // Smart Ace: Pick color computer has most of in hand, or most played color
+                 const computerHand = computerDecks[who - 1] || [];
+                 const colorCounts = { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 };
+                 computerHand.forEach(c => {
+                   if (c.num !== "A" && colorCounts[c.color] !== undefined) {
+                     colorCounts[c.color]++;
+                   }
+                 });
+                 
+                 // Pick color with most cards in hand
+                 let bestColor = colors[0];
+                 let maxCount = -1;
+                 colors.forEach(color => {
+                   if (colorCounts[color] > maxCount) {
+                     maxCount = colorCounts[color];
+                     bestColor = color;
+                   }
+                 });
+                 
+                 // If no cards of any color, pick most played (opponents likely don't have)
+                 if (maxCount === 0) {
+                   const discardColorCount = { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 };
+                   discardPile.forEach(c => {
+                     if (discardColorCount[c.color] !== undefined) {
+                       discardColorCount[c.color]++;
+                     }
+                   });
+                   colors.forEach(color => {
+                     if (discardColorCount[color] > maxCount) {
+                       maxCount = discardColorCount[color];
+                       bestColor = color;
+                     }
+                   });
+                 }
+                 
+                 setActiveColor(bestColor);
+                 setMessage(`${whoName} changed color to ${bestColor}`);
              }
          } else if (effect.type === "SKIP") {
              nextSkipActive = true;
@@ -635,6 +812,165 @@ export default function Home() {
     }
   };
 
+  // ===== SMART AI LOGIC =====
+  
+  // Analyze discard pile to understand which colors/numbers are depleted
+  const analyzeDiscardPile = () => {
+    const colorCount = { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 };
+    const numCount = {};
+    
+    discardPile.forEach(card => {
+      if (colorCount[card.color] !== undefined) {
+        colorCount[card.color]++;
+      }
+      numCount[card.num] = (numCount[card.num] || 0) + 1;
+    });
+    
+    // Also count visible stack
+    visibleStack.forEach(card => {
+      if (colorCount[card.color] !== undefined) {
+        colorCount[card.color]++;
+      }
+      numCount[card.num] = (numCount[card.num] || 0) + 1;
+    });
+    
+    return { colorCount, numCount };
+  };
+  
+  // Find the color that's been played most (opponents likely don't have it)
+  const getMostPlayedColor = () => {
+    const { colorCount } = analyzeDiscardPile();
+    let maxColor = colors[0];
+    let maxCount = 0;
+    
+    colors.forEach(color => {
+      if (colorCount[color] > maxCount) {
+        maxCount = colorCount[color];
+        maxColor = color;
+      }
+    });
+    
+    return maxColor;
+  };
+  
+  // Get next active opponent (for targeting)
+  const getNextOpponent = (currentTurn) => {
+    const next = getNextActiveTurn(currentTurn);
+    return {
+      index: next,
+      isHuman: next === 0,
+      cardCount: next === 0 ? playerDeck.length : (computerDecks[next - 1]?.length || 99)
+    };
+  };
+  
+  // Smart card selection for computer
+  const selectSmartCard = (hand, validCards, computerIdx) => {
+    if (validCards.length === 0) return null;
+    if (validCards.length === 1) return { card: validCards[0], paired: null };
+    
+    const nextOpponent = getNextOpponent(computerIdx + 1);
+    const handSize = hand.length;
+    
+    // Categorize valid cards
+    const twos = validCards.filter(c => c.num === "2");
+    const jacks = validCards.filter(c => c.num === "J");
+    const aces = validCards.filter(c => c.num === "A");
+    const queens = validCards.filter(c => c.num === "Q");
+    const normalCards = validCards.filter(c => !isPowerCard(c));
+    
+    // STRATEGY 1: If close to winning (2-3 cards), save normal cards to finish
+    if (handSize <= 3 && normalCards.length > 0) {
+      // If we have exactly one normal card, try to use power cards first
+      if (normalCards.length === 1 && (twos.length > 0 || jacks.length > 0)) {
+        // Use power cards to delay, save the finisher
+        if (jacks.length > 0 && nextOpponent.cardCount <= 3) {
+          return { card: jacks[0], paired: null }; // Skip opponent who's close to winning
+        }
+        if (twos.length > 0) {
+          return { card: twos[0], paired: null };
+        }
+      }
+      // Play normal card to finish (if it's our last non-power card)
+      if (handSize === 1 && normalCards.length === 1) {
+        return { card: normalCards[0], paired: null };
+      }
+    }
+    
+    // STRATEGY 2: Pressure opponent who's close to winning
+    if (nextOpponent.cardCount <= 2) {
+      // Try to skip them with Jack
+      if (jacks.length > 0) {
+        return { card: jacks[0], paired: null };
+      }
+      // Or hit them with 2 penalty
+      if (twos.length > 0) {
+        return { card: twos[0], paired: null };
+      }
+    }
+    
+    // STRATEGY 3: Target human player specifically when they're low
+    if (nextOpponent.isHuman && nextOpponent.cardCount <= 4) {
+      if (jacks.length > 0) {
+        return { card: jacks[0], paired: null };
+      }
+      if (twos.length > 0) {
+        return { card: twos[0], paired: null };
+      }
+    }
+    
+    // STRATEGY 4: Queen pairing - try to pair Q with same-color normal card
+    if (queens.length > 0) {
+      for (const queen of queens) {
+        const pairableCards = hand.filter(c => 
+          c.id !== queen.id && 
+          c.color === queen.color && 
+          !isPowerCard(c) && 
+          c.num !== "Q"
+        );
+        if (pairableCards.length > 0) {
+          // Found a pair! Play Q + normal card
+          return { card: queen, paired: pairableCards[0] };
+        }
+      }
+    }
+    
+    // STRATEGY 5: Use Ace strategically - change to color most played (opponents likely don't have)
+    if (aces.length > 0 && handSize > 2) {
+      // Save Ace for later unless we need to change color badly
+      const mostPlayedColor = getMostPlayedColor();
+      const hasCardsInMostPlayed = hand.some(c => c.color === mostPlayedColor && c.num !== "A");
+      
+      // Only use Ace if we have cards in that color to follow up
+      if (hasCardsInMostPlayed) {
+        return { card: aces[0], paired: null, preferredColor: mostPlayedColor };
+      }
+    }
+    
+    // STRATEGY 6: Prefer playing cards of colors we have many of (keep options open)
+    if (normalCards.length > 0) {
+      const colorGroups = {};
+      hand.forEach(c => {
+        colorGroups[c.color] = (colorGroups[c.color] || 0) + 1;
+      });
+      
+      // Sort normal cards by how many cards of that color we have (play from largest group)
+      const sortedNormals = [...normalCards].sort((a, b) => {
+        return (colorGroups[b.color] || 0) - (colorGroups[a.color] || 0);
+      });
+      
+      return { card: sortedNormals[0], paired: null };
+    }
+    
+    // STRATEGY 7: If only power cards left, prioritize: 2 > J > Q > A
+    if (twos.length > 0) return { card: twos[0], paired: null };
+    if (jacks.length > 0) return { card: jacks[0], paired: null };
+    if (queens.length > 0) return { card: queens[0], paired: null };
+    if (aces.length > 0) return { card: aces[0], paired: null };
+    
+    // Fallback: random valid card
+    return { card: validCards[Math.floor(Math.random() * validCards.length)], paired: null };
+  };
+  
   // Computer AI - handles all computer players
   useEffect(() => {
     // Check if it's any computer's turn (turn > 0) and they're still active
@@ -661,6 +997,7 @@ export default function Home() {
         }
           
         if (penaltyStack > 0) {
+            // Smart: Stack if we have 2, otherwise take the hit
             const penaltyCard = currentComputerDeck.find(c => c.num === "2");
             if (penaltyCard) {
                 playCards(turn, [penaltyCard]);
@@ -669,7 +1006,7 @@ export default function Home() {
                 drawCard(turn, penaltyStack);
                 setPenaltyStack(0);
                 setTurn(getNextActiveTurn(turn));
-                setMessage(`${computerName} drew cards for penalty.`);
+                setMessage(`${computerName} drew ${penaltyStack} cards for penalty.`);
                 return;
             }
         }
@@ -682,18 +1019,29 @@ export default function Home() {
         });
         
         if (validCards.length > 0) {
-            const cardToPlay = validCards[Math.floor(Math.random() * validCards.length)];
-            playCards(turn, [cardToPlay]);
+            // Use smart card selection
+            const selection = selectSmartCard(currentComputerDeck, validCards, computerIndex);
+            
+            if (selection.paired) {
+                // Play Queen pair
+                playCards(turn, [selection.card, selection.paired]);
+            } else if (selection.card.num === "A" && selection.preferredColor) {
+                // For Ace, we'll set the preferred color after playing
+                // Store it temporarily (the playCards function handles Ace color selection)
+                playCards(turn, [selection.card]);
+            } else {
+                playCards(turn, [selection.card]);
+            }
         } else {
             drawCard(turn, 1);
             setTurn(getNextActiveTurn(turn));
             setMessage(`${computerName} drew a card.`);
         }
-      }, 2000); // 2 second delay to see computer plays
+      }, 1500); // Slightly faster for better game flow
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turn, gameStart, gameOver, computerDecks, currentPlayCard, activeColor, penaltyStack, skipActive, qPairCard, numPlayers, rankings]);
+  }, [turn, gameStart, gameOver, computerDecks, currentPlayCard, activeColor, penaltyStack, skipActive, qPairCard, numPlayers, rankings, discardPile, playerDeck]);
 
   // Check win condition effect - safety net
   // Note: Win condition is primarily checked in playCards function
@@ -804,11 +1152,24 @@ export default function Home() {
             </p>
           </div>
           <button
-            className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 md:py-4 md:px-12 rounded-full transition-all transform hover:scale-105 shadow-xl border-4 border-yellow-600 text-lg md:text-xl"
+            className={`font-bold py-3 px-8 md:py-4 md:px-12 rounded-full transition-all transform shadow-xl border-4 text-lg md:text-xl ${
+              assetsLoaded 
+                ? "bg-yellow-500 hover:bg-yellow-400 text-black border-yellow-600 hover:scale-105" 
+                : "bg-gray-500 text-gray-300 border-gray-600 cursor-wait"
+            }`}
             onClick={startGame}
+            disabled={!assetsLoaded}
           >
-            DEAL CARDS
+            {assetsLoaded ? "DEAL CARDS" : (
+              <span className="flex items-center gap-2">
+                <span className="w-5 h-5 border-2 border-gray-300 border-t-white rounded-full animate-spin" />
+                LOADING...
+              </span>
+            )}
           </button>
+          {!assetsLoaded && (
+            <p className="text-white/60 text-xs mt-2 animate-pulse">Caching card assets for smooth gameplay...</p>
+          )}
         </div>
       ) : (
         <div className="w-full h-screen flex flex-col p-2 sm:p-4 relative overflow-visible">
@@ -837,16 +1198,11 @@ export default function Home() {
                             ))}
                         </div>
                         
-                        <p className="text-white text-sm sm:text-xl mb-3 sm:mb-4">Returning to menu in 6 seconds...</p>
                         <button 
-                            onClick={() => {
-                                setGameStart(false);
-                                setGameOver(false);
-                                setRankings([]);
-                            }}
-                            className="bg-white text-black px-4 sm:px-6 py-2 sm:py-3 rounded-full font-bold hover:bg-gray-200 text-sm sm:text-base"
+                            onClick={handleNewGame}
+                            className="bg-yellow-500 hover:bg-yellow-400 text-black px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold shadow-xl border-4 border-yellow-600 text-base sm:text-lg transition-all transform hover:scale-105"
                         >
-                            Return Now
+                            🎮 PLAY AGAIN
                         </button>
                     </div>
                 </div>
@@ -895,6 +1251,12 @@ export default function Home() {
               {/* Theme Toggle & Active Color - Mobile Left */}
               <div className="flex items-center gap-2">
                 <button
+                  onClick={handleNewGame}
+                  className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-full shadow-lg border-2 border-red-400 transition-colors"
+                >
+                  NEW
+                </button>
+                <button
                   onClick={toggleTheme}
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-sm ${
                     isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
@@ -939,6 +1301,12 @@ export default function Home() {
               </div>
               
               <div className="flex items-center gap-3">
+                <button
+                  onClick={handleNewGame}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-full shadow-lg border-2 border-red-400 transition-colors"
+                >
+                  NEW GAME
+                </button>
                 <GameRules isDarkTheme={isDarkTheme} />
                 <button
                   onClick={toggleTheme}
