@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { shuffleDeck, isRedColor } from "@/utils/utils";
 import { isValidMove, getCardEffect, checkWinCondition, isPowerCard } from "@/utils/rule";
 import { Card } from "./components/Card";
@@ -50,6 +50,9 @@ export default function Home() {
   
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
+  
+  // Ref for the play area (drop zone)
+  const playAreaRef = useRef(null);
 
   // Initialize game
   useEffect(() => {
@@ -105,7 +108,7 @@ export default function Home() {
       let showStartColorPicker = false;
       
       if (startCard.num === "2") {
-        // Starting with 2: player draws 2 cards
+        // Starting with 2: player draws 2 cards (cannot be stacked)
         const penaltyCards = remainingDeck.slice(0, 2);
         remainingDeck = remainingDeck.slice(2);
         pDeck = [...pDeck, ...penaltyCards];
@@ -290,26 +293,37 @@ export default function Home() {
     setSelectedCards([]);
   };
 
-  const handleDragStart = (e, card) => {
+  // Handle drag end - check if card was dropped on play area (works on mobile & desktop)
+  const handleDragEnd = (card, info) => {
     if (turn !== "player") return;
-    e.dataTransfer.setData("text/plain", JSON.stringify(card));
     
-    if (!selectedCards.find(c => c.id === card.id)) {
-        setSelectedCards([card]);
+    // Check if card was dropped over the play area
+    if (!playAreaRef.current) return;
+    
+    const playAreaRect = playAreaRef.current.getBoundingClientRect();
+    
+    // Get drop coordinates - info.point contains the pointer position
+    const dropX = info.point.x;
+    const dropY = info.point.y;
+    
+    // Add tolerance - make the drop zone larger for easier dropping on mobile
+    const tolerance = 60;
+    
+    // Check if the drop point is within the play area (with tolerance)
+    const isOverPlayArea = 
+      dropX >= playAreaRect.left - tolerance &&
+      dropX <= playAreaRect.right + tolerance &&
+      dropY >= playAreaRect.top - tolerance &&
+      dropY <= playAreaRect.bottom + tolerance;
+    
+    if (!isOverPlayArea) {
+      return;
     }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    if (turn !== "player") return;
-
-    const data = e.dataTransfer.getData("text/plain");
-    if (!data) return;
-    const droppedCard = JSON.parse(data);
-
-    let cardsToPlay = [droppedCard];
-    if (selectedCards.find(c => c.id === droppedCard.id)) {
-        cardsToPlay = selectedCards;
+    
+    // Card was dropped on play area - attempt to play it
+    let cardsToPlay = [card];
+    if (selectedCards.find(c => c.id === card.id)) {
+      cardsToPlay = selectedCards;
     }
 
     const firstCard = cardsToPlay[0];
@@ -319,8 +333,8 @@ export default function Home() {
       return;
     }
     if (skipActive && firstCard.num !== "J") {
-        setMessage("You are skipped! Must play a Jack.");
-        return;
+      setMessage("You are skipped! Must play a Jack.");
+      return;
     }
 
     // Check validity against current card OR Q pair card (if Q was paired)
@@ -333,20 +347,20 @@ export default function Home() {
     
     // Pair validation - only Q can be paired, and only with normal cards of same color
     if (cardsToPlay.length > 1) {
-        if (cardsToPlay.length > 2) {
-            setMessage("Maximum 2 cards can be played!");
-            return;
-        }
+      if (cardsToPlay.length > 2) {
+        setMessage("Maximum 2 cards can be played!");
+        return;
+      }
 
-        const secondCard = cardsToPlay[1];
-        const isValidQueenPair = firstCard.num === "Q" && 
-                                  firstCard.color === secondCard.color && 
-                                  isNormalCard(secondCard);
+      const secondCard = cardsToPlay[1];
+      const isValidQueenPair = firstCard.num === "Q" && 
+                                firstCard.color === secondCard.color && 
+                                isNormalCard(secondCard);
 
-        if (!isValidQueenPair) {
-             setMessage("Only Q can be paired with a normal card of same color!");
-             return;
-        }
+      if (!isValidQueenPair) {
+        setMessage("Only Q can be paired with a normal card of same color!");
+        return;
+      }
     }
 
     playCards("player", cardsToPlay);
@@ -358,6 +372,7 @@ export default function Home() {
 
     if (who === "player") {
       setPlayerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
+      setSelectedCards([]); // Always clear selection when player plays
     } else {
       setComputerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
     }
@@ -559,6 +574,21 @@ export default function Home() {
       }
   }, [playerDeck, computerDeck, gameStart, winner, currentPlayCard]);
 
+  // Clean up stale selections - remove any selected cards that are no longer in player's hand
+  // Only runs when playerDeck changes (not when selectedCards changes to avoid loops)
+  useEffect(() => {
+      setSelectedCards(prev => {
+          if (prev.length === 0) return prev;
+          const validSelections = prev.filter(sc => 
+              playerDeck.some(pc => pc.id === sc.id)
+          );
+          if (validSelections.length !== prev.length) {
+              return validSelections;
+          }
+          return prev;
+      });
+  }, [playerDeck]);
+
 
   return (
     <div 
@@ -605,7 +635,7 @@ export default function Home() {
           </button>
         </div>
       ) : (
-        <div className="w-full h-screen flex flex-col p-2 sm:p-4 relative overflow-hidden">
+        <div className="w-full h-screen flex flex-col p-2 sm:p-4 relative overflow-visible">
             {/* Winner Overlay */}
             {winner && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
@@ -697,7 +727,7 @@ export default function Home() {
           </div>
 
           {/* Play Area */}
-          <div className="flex-1 flex items-center justify-center gap-4 sm:gap-8 md:gap-24 relative">
+          <div className="flex-1 flex items-center justify-center gap-12 sm:gap-12 md:gap-24 relative">
             {/* Draw/Pass Pile */}
             <div 
                 onClick={handleDrawClick}
@@ -748,9 +778,8 @@ export default function Home() {
                 )}
                 
                 <div
+                    ref={playAreaRef}
                     className={`w-28 h-36 sm:w-40 sm:h-52 md:w-56 md:h-72 border-2 sm:border-4 border-dashed rounded-xl sm:rounded-2xl flex items-center justify-center bg-white/5 backdrop-blur-sm ${qPairCard ? "border-purple-400/50" : "border-white/30"} relative overflow-visible`}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={handleDrop}
                 >
                     {/* Stacked previous cards - more visible rotations */}
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -833,25 +862,25 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* Play Selected Button */}
-            {selectedCards.length > 0 && turn === "player" && (
+            {/* Play Selected Button - Only show for Q pairing (2 cards) */}
+            {selectedCards.length === 2 && turn === "player" && (
                 <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-12 sm:translate-y-20 z-20">
                     <button
                         onClick={handlePlaySelected}
                         className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-400 hover:to-green-600 text-white font-bold py-2 px-4 sm:py-3 sm:px-8 rounded-full shadow-xl animate-bounce border-2 border-green-300 text-sm sm:text-lg"
                     >
-                        PLAY {selectedCards.length} CARD{selectedCards.length > 1 ? 'S' : ''}
+                        PLAY Q PAIR
                     </button>
                 </div>
             )}
           </div>
 
           {/* Player Area */}
-          <div className="flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4">
+          <div className="flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4 overflow-visible">
             <div className="mb-1 sm:mb-2 text-xs sm:text-base font-bold text-white bg-black/30 px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm">
                 {playerName || "Player"} ({playerDeck.length})
             </div>
-            <div className="flex -space-x-6 sm:-space-x-8 overflow-x-auto p-2 sm:p-4 max-w-full min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-12">
+            <div className="flex -space-x-6 sm:-space-x-8 overflow-visible p-2 sm:p-4 max-w-full min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-12">
               <AnimatePresence>
                 {playerDeck.map((card, index) => {
                   const isSelected = selectedCards.find(c => c.id === card.id);
@@ -870,14 +899,28 @@ export default function Home() {
                   }
                   
                   return (
-                    <div
+                    <motion.div
                       key={card.id}
-                      draggable={turn === "player"}
-                      onDragStart={(e) => handleDragStart(e, card)}
-                      onClick={() => handleCardClick(card)}
-                      className={`transition-all duration-200 cursor-pointer ${
-                          isSelected ? "-translate-y-4 sm:-translate-y-8 z-10 scale-105 sm:scale-110" : "hover:-translate-y-2 sm:hover:-translate-y-4 hover:scale-105"
+                      drag={turn === "player"}
+                      dragSnapToOrigin
+                      dragElastic={1}
+                      dragMomentum={false}
+                      dragTransition={{ bounceStiffness: 500, bounceDamping: 30 }}
+                      whileDrag={{ 
+                        scale: 1.1, 
+                        zIndex: 9999,
+                        boxShadow: "0 20px 40px -8px rgba(0, 0, 0, 0.4)"
+                      }}
+                      onTap={() => handleCardClick(card)}
+                      onDragEnd={(event, info) => handleDragEnd(card, info)}
+                      className={`cursor-grab active:cursor-grabbing touch-none ${
+                          isSelected 
+                            ? "-translate-y-4 sm:-translate-y-8 z-20 scale-105 sm:scale-110" 
+                            : highlightPair 
+                              ? "-translate-y-3 sm:-translate-y-5 z-10" 
+                              : ""
                       }`}
+                      style={{ touchAction: "none", position: "relative" }}
                     >
                       <Card
                         card={card}
@@ -892,7 +935,7 @@ export default function Home() {
                                     : "border-gray-300"
                         }`}
                       />
-                    </div>
+                    </motion.div>
                   );
                 })}
               </AnimatePresence>
