@@ -50,12 +50,12 @@ export const Card = ({ index, card, className, ...props }) => {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.8, opacity: 0 }}
         transition={{ duration: 0.3 }}
-        className={`relative w-[70px] h-[98px] rounded-lg shadow-md mx-0.5 select-none overflow-hidden ${className}`}
+        className={`relative w-[90px] h-[126px] rounded-lg shadow-md mx-0.5 select-none overflow-hidden ${className}`}
       >
         <img 
           src={`${CARD_ASSETS_BASE}/back.png`}
           alt="Card back"
-          className="w-full h-full object-cover rounded-lg"
+          className="w-full h-full object-cover rounded-lg p-[3px]"
           draggable={false}
         />
       </motion.div>
@@ -71,14 +71,14 @@ export const Card = ({ index, card, className, ...props }) => {
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0.8, opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className={`relative w-[70px] h-[98px] rounded-lg shadow-md mx-0.5 select-none overflow-hidden bg-white ${className}`}
+      className={`relative w-[90px] h-[126px] rounded-lg shadow-md mx-0.5 select-none overflow-hidden bg-white ${className}`}
       {...props}
     >
       {imageUrl ? (
         <img 
           src={imageUrl}
           alt={`${num} of ${suit}`}
-          className="w-full h-full object-contain rounded-lg"
+          className="w-full h-full object-contain rounded-lg p-[3px]"
           draggable={false}
         />
       ) : (
