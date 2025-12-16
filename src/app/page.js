@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { shuffleDeck, isRedColor } from "@/utils/utils";
-import { isValidMove, getCardEffect, checkWinCondition } from "@/utils/rule";
+import { isValidMove, getCardEffect, checkWinCondition, isPowerCard } from "@/utils/rule";
 import { Card } from "./components/Card";
 import { GameRules } from "./components/GameRules"; // Import GameRules component
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,6 +28,8 @@ const cardNums = [
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
   const [drawPile, setDrawPile] = useState([]); // Remaining cards to draw
+  const [discardPile, setDiscardPile] = useState([]); // Played cards (for recycling)
+  const [visibleStack, setVisibleStack] = useState([]); // Last few cards for visual stack effect
   const [gameStart, setGameStart] = useState(false);
   const [playerDeck, setPlayerDeck] = useState([]);
   const [computerDeck, setComputerDeck] = useState([]);
@@ -40,8 +42,11 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [penaltyStack, setPenaltyStack] = useState(0);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [isStartingColorPick, setIsStartingColorPick] = useState(false); // Track if color pick is for starting Ace
   const [winner, setWinner] = useState(null);
   const [skipActive, setSkipActive] = useState(false); // Track if a skip is pending
+  const [deckRecycled, setDeckRecycled] = useState(false); // Show deck recycled indicator
+  const [qPairCard, setQPairCard] = useState(null); // Track Q pair secondary card for dual matching
   
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
@@ -88,42 +93,100 @@ export default function Home() {
       const newDeck = [...deck];
       shuffleDeck(newDeck);
 
-      const pDeck = newDeck.slice(0, gameCardNum);
+      let pDeck = newDeck.slice(0, gameCardNum);
       const cDeck = newDeck.slice(gameCardNum, gameCardNum * 2);
       const startCard = newDeck[gameCardNum * 2];
-      const remainingDeck = newDeck.slice(gameCardNum * 2 + 1);
+      let remainingDeck = newDeck.slice(gameCardNum * 2 + 1);
+
+      // Handle starting card penalties
+      let startMessage = `Game Started! ${playerName}'s Turn`;
+      let startingTurn = "player";
+      let startingActiveColor = startCard.color;
+      let showStartColorPicker = false;
+      
+      if (startCard.num === "2") {
+        // Starting with 2: player draws 2 cards
+        const penaltyCards = remainingDeck.slice(0, 2);
+        remainingDeck = remainingDeck.slice(2);
+        pDeck = [...pDeck, ...penaltyCards];
+        startMessage = `Game Started! Starting card is 2 - ${playerName} draws 2 cards!`;
+      } else if (startCard.num === "Q") {
+        // Starting with Q: player draws 1 card
+        const penaltyCards = remainingDeck.slice(0, 1);
+        remainingDeck = remainingDeck.slice(1);
+        pDeck = [...pDeck, ...penaltyCards];
+        startMessage = `Game Started! Starting card is Q - ${playerName} draws 1 card!`;
+      } else if (startCard.num === "J") {
+        // Starting with J: player's turn is skipped
+        startingTurn = "computer";
+        startMessage = `Game Started! Starting card is J - ${playerName}'s turn is skipped!`;
+      } else if (startCard.num === "A") {
+        // Starting with A: player chooses active color
+        showStartColorPicker = true;
+        startMessage = `Game Started! Starting card is A - ${playerName} choose the active color!`;
+      }
 
       setPlayerDeck(pDeck);
       setComputerDeck(cDeck);
       setCurrentPlayCard(startCard);
-      setActiveColor(startCard.color);
+      setActiveColor(startingActiveColor);
       setDrawPile(remainingDeck);
+      setDiscardPile([]); // Start with empty discard pile
       setGameStart(true);
-      setTurn("player");
-      setMessage(`Game Started! ${playerName}'s Turn`);
+      setTurn(startingTurn);
+      setMessage(startMessage);
       setPenaltyStack(0);
       setSkipActive(false);
       setWinner(null);
       setSelectedCards([]);
+      setShowColorPicker(showStartColorPicker);
+      setIsStartingColorPick(showStartColorPicker); // Mark if this is a starting Ace color pick
+      setDeckRecycled(false);
+      setQPairCard(null);
+      setVisibleStack([]); // Reset visual stack
     }
   };
 
   const drawCard = (who, count = 1) => {
-    if (drawPile.length === 0) {
-      setMessage("Draw pile empty!");
+    let currentDrawPile = [...drawPile];
+    let currentDiscardPile = [...discardPile];
+    let recycled = false;
+
+    // If draw pile is empty or doesn't have enough cards, recycle discard pile
+    if (currentDrawPile.length < count && currentDiscardPile.length > 0) {
+      // Shuffle the discard pile and add to draw pile
+      shuffleDeck(currentDiscardPile);
+      currentDrawPile = [...currentDrawPile, ...currentDiscardPile];
+      currentDiscardPile = [];
+      recycled = true;
+      setDeckRecycled(true);
+      // Auto-hide the recycled indicator after 2 seconds
+      setTimeout(() => setDeckRecycled(false), 2000);
+    }
+
+    if (currentDrawPile.length === 0) {
+      setMessage("No cards available to draw!");
       return;
     }
 
-    const cardsToDraw = drawPile.slice(0, count);
-    const newDrawPile = drawPile.slice(count);
+    // Draw the requested number of cards (or as many as available)
+    const actualCount = Math.min(count, currentDrawPile.length);
+    const cardsToDraw = currentDrawPile.slice(0, actualCount);
+    const newDrawPile = currentDrawPile.slice(actualCount);
 
     setDrawPile(newDrawPile);
+    setDiscardPile(currentDiscardPile);
 
     if (who === "player") {
       setPlayerDeck((prev) => [...prev, ...cardsToDraw]);
     } else {
       setComputerDeck((prev) => [...prev, ...cardsToDraw]);
     }
+
+    if (recycled) {
+      setMessage(`Deck recycled! ${who === "player" ? playerName : "Computer"} drew ${actualCount} card(s).`);
+    }
+
     return cardsToDraw;
   };
 
@@ -131,37 +194,45 @@ export default function Home() {
   const handleGameCardNumChange = (e) => setGameCardNum(parseInt(e.target.value));
   const toggleTheme = () => setIsDarkTheme(!isDarkTheme);
 
+  // Power cards that cannot be paired with Q
+  const POWER_CARD_NUMS = ["A", "2", "J", "K"];
+  const isNormalCard = (c) => !POWER_CARD_NUMS.includes(c.num) && c.num !== "Q";
+
   const handleCardClick = (card) => {
     if (turn !== "player") return;
 
-    // Toggle selection
+    // Toggle selection - deselect if already selected
     if (selectedCards.find(c => c.id === card.id)) {
       setSelectedCards(selectedCards.filter(c => c.id !== card.id));
-    } else {
-      // Logic for adding to selection:
-      // 1. If no cards selected, select this one.
-      // 2. If one card selected, check rules:
-      //    - Same Rank? (Standard Pair)
-      //    - Same Color AND Rank is Q? (Queen Special Rule)
+      return;
+    }
+
+    // Max 2 cards can be selected (only Q pairing allowed)
+    if (selectedCards.length >= 2) {
+      // Replace selection with new card
+      setSelectedCards([card]);
+      return;
+    }
+
+    // If one card is already selected, check if pairing is allowed
+    if (selectedCards.length === 1) {
+      const firstCard = selectedCards[0];
       
-      if (selectedCards.length > 0) {
-        const firstCard = selectedCards[0];
-        
-        // Check Same Rank
-        const isSameRank = firstCard.num === card.num;
-        
-        // Check Queen Special Rule: Q + Same Color Card
-        const isQueenSpecial = firstCard.num === "Q" && firstCard.color === card.color;
-        
-        if (isSameRank || isQueenSpecial) {
-             setSelectedCards([...selectedCards, card]);
-        } else {
-            // If neither matches, switch selection to new card
-            setSelectedCards([card]);
-        }
+      // Only Q can be paired, and only with NORMAL cards of same color
+      // Q must be the first selected card
+      const isQueenPair = firstCard.num === "Q" && 
+                          firstCard.color === card.color && 
+                          isNormalCard(card);
+      
+      if (isQueenPair) {
+        setSelectedCards([firstCard, card]);
       } else {
+        // Switch selection to new card
         setSelectedCards([card]);
       }
+    } else {
+      // No cards selected, select this one
+      setSelectedCards([card]);
     }
   };
 
@@ -180,7 +251,10 @@ export default function Home() {
         return; 
     }
 
-    if (!isValidMove(firstCard, currentPlayCard, activeColor) && !skipActive) { 
+    // Check validity against current card OR Q pair card (if Q was paired)
+    const validAgainstCurrent = isValidMove(firstCard, currentPlayCard, activeColor);
+    const validAgainstQPair = qPairCard && isValidMove(firstCard, qPairCard, qPairCard.color);
+    if (!validAgainstCurrent && !validAgainstQPair && !skipActive) { 
          setMessage("Invalid Move!");
          return;
     }
@@ -193,24 +267,21 @@ export default function Home() {
     }
 
 
-    // Pair validation
+    // Pair validation - only Q can be paired, and only with normal cards of same color
     if (selectedCards.length > 1) {
-        // Rule 1: Same Rank (Standard Pair)
-        const allSameRank = selectedCards.every(c => c.num === firstCard.num);
-        
-        // Rule 2: Queen Special (Q + Same Color Card)
-        // Only valid if primary card is Q, and pair consists of Q and another card of SAME COLOR.
-        // Note: Logic above allows selecting them, here we validate.
-        let isQueenSpecial = false;
-        if (firstCard.num === "Q" && selectedCards.length === 2) {
-             const secondCard = selectedCards[1];
-             if (firstCard.color === secondCard.color) {
-                 isQueenSpecial = true;
-             }
+        if (selectedCards.length > 2) {
+            setMessage("Maximum 2 cards can be played!");
+            return;
         }
 
-        if (!allSameRank && !isQueenSpecial) {
-             setMessage("Cards must match Rank OR be a Queen + Same Color!");
+        // Only Q can be paired with a normal card of same color
+        const secondCard = selectedCards[1];
+        const isValidQueenPair = firstCard.num === "Q" && 
+                                  firstCard.color === secondCard.color && 
+                                  isNormalCard(secondCard);
+
+        if (!isValidQueenPair) {
+             setMessage("Only Q can be paired with a normal card of same color!");
              return;
         }
     }
@@ -252,23 +323,28 @@ export default function Home() {
         return;
     }
 
-    if (!isValidMove(firstCard, currentPlayCard, activeColor) && !skipActive) {
+    // Check validity against current card OR Q pair card (if Q was paired)
+    const validAgainstCurrent = isValidMove(firstCard, currentPlayCard, activeColor);
+    const validAgainstQPair = qPairCard && isValidMove(firstCard, qPairCard, qPairCard.color);
+    if (!validAgainstCurrent && !validAgainstQPair && !skipActive) {
       setMessage("Invalid Move!");
       return;
     }
     
+    // Pair validation - only Q can be paired, and only with normal cards of same color
     if (cardsToPlay.length > 1) {
-        const allSameRank = cardsToPlay.every(c => c.num === firstCard.num);
-        let isQueenSpecial = false;
-        if (firstCard.num === "Q" && cardsToPlay.length === 2) {
-             const secondCard = cardsToPlay[1];
-             if (firstCard.color === secondCard.color) {
-                 isQueenSpecial = true;
-             }
+        if (cardsToPlay.length > 2) {
+            setMessage("Maximum 2 cards can be played!");
+            return;
         }
 
-        if (!allSameRank && !isQueenSpecial) {
-             setMessage("Cards must match Rank OR be a Queen + Same Color!");
+        const secondCard = cardsToPlay[1];
+        const isValidQueenPair = firstCard.num === "Q" && 
+                                  firstCard.color === secondCard.color && 
+                                  isNormalCard(secondCard);
+
+        if (!isValidQueenPair) {
+             setMessage("Only Q can be paired with a normal card of same color!");
              return;
         }
     }
@@ -279,23 +355,48 @@ export default function Home() {
 
   const playCards = (who, cards) => {
     const primaryCard = cards[0];
-    
+
     if (who === "player") {
       setPlayerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
     } else {
       setComputerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
     }
 
+    // Add the old current card and all but the last played card to discard pile
+    const cardsToDiscard = [];
+    if (currentPlayCard) {
+      cardsToDiscard.push(currentPlayCard);
+    }
+    // If multiple cards played, all except last go to discard pile
+    if (cards.length > 1) {
+      cardsToDiscard.push(...cards.slice(0, -1));
+    }
+    if (cardsToDiscard.length > 0) {
+      setDiscardPile((prev) => [...prev, ...cardsToDiscard]);
+    }
+
+    // Update visible stack for visual effect (keep last 5 cards)
+    if (currentPlayCard) {
+      setVisibleStack((prev) => {
+        const newStack = [...prev, currentPlayCard];
+        // Keep only the last 5 cards for visual effect
+        return newStack.slice(-5);
+      });
+    }
+
     const lastCard = cards[cards.length - 1];
     setCurrentPlayCard(lastCard);
 
+    // Clear any previous Q pair card when a new play is made
+    setQPairCard(null);
+
     let shouldChangeColor = true;
-    // Queen Pair Rule: Paired Q does not change active color.
-    // Does this apply to Q + Same Color? 
-    // "Paired Play: Can be played with another card of the same color to shed both... Paired Q does not change active color."
-    // Yes.
+    // Queen Pair Rule: When Q is played with same-color card
+    // The non-Q card becomes current, but next player can match against BOTH cards
     if (primaryCard.num === "Q" && cards.length > 1) {
-        shouldChangeColor = false;
+        // Set the Q as the secondary card that next player can also match against
+        setQPairCard(primaryCard); // Store the Q for dual matching
+        shouldChangeColor = true; // Color DOES change to the paired card's color
     }
     if (shouldChangeColor && primaryCard.num !== "A") {
         setActiveColor(lastCard.color);
@@ -338,8 +439,16 @@ export default function Home() {
 
     const currentDeckLength = (who === "player" ? playerDeck.length : computerDeck.length) - cards.length;
     if (currentDeckLength === 0) {
-        setWinner(who);
-        return;
+        // Check if any played card is a power card - power cards cannot finish the game
+        const playedPowerCard = cards.some(card => isPowerCard(card));
+        if (playedPowerCard) {
+            // Player must draw one card from stack - cannot finish with power card
+            drawCard(who, 1);
+            setMessage(`${who === "player" ? playerName : "Computer"} cannot finish with a power card! Drew 1 card.`);
+        } else {
+            setWinner(who);
+            return;
+        }
     }
 
     setTurn(nextTurn);
@@ -348,8 +457,17 @@ export default function Home() {
   const handleColorPick = (color) => {
     setActiveColor(color);
     setShowColorPicker(false);
-    setTurn("computer");
-    setMessage(`${playerName} changed color to ${color}`);
+    
+    if (isStartingColorPick) {
+      // Starting Ace: player chose color, now it's their turn to play
+      setTurn("player");
+      setMessage(`${playerName} chose ${color} as active color. Your turn!`);
+      setIsStartingColorPick(false);
+    } else {
+      // Normal Ace play: turn goes to computer
+      setTurn("computer");
+      setMessage(`${playerName} changed color to ${color}`);
+    }
   };
 
   const handleDrawClick = () => {
@@ -405,7 +523,12 @@ export default function Home() {
             }
         }
 
-        const validCards = computerDeck.filter(c => isValidMove(c, currentPlayCard, activeColor));
+        // Check validity against current card OR Q pair card (if Q was paired)
+        const validCards = computerDeck.filter(c => {
+            const validAgainstCurrent = isValidMove(c, currentPlayCard, activeColor);
+            const validAgainstQPair = qPairCard && isValidMove(c, qPairCard, qPairCard.color);
+            return validAgainstCurrent || validAgainstQPair;
+        });
         
         if (validCards.length > 0) {
             const cardToPlay = validCards[Math.floor(Math.random() * validCards.length)];
@@ -419,15 +542,22 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turn, gameStart, winner, computerDeck, currentPlayCard, activeColor, penaltyStack, skipActive]);
+  }, [turn, gameStart, winner, computerDeck, currentPlayCard, activeColor, penaltyStack, skipActive, qPairCard]);
 
   // Check win condition effect
+  // Note: Win condition is primarily checked in playCards function
+  // This effect is a safety net but should not trigger for power card scenarios
+  // since playCards handles drawing a card when finishing with power cards
   useEffect(() => {
-      if (gameStart) {
-          if (playerDeck.length === 0) setWinner("player");
-          if (computerDeck.length === 0) setWinner("computer");
+      if (gameStart && !winner) {
+          // Only check win if current play card is NOT a power card
+          // (power card finishes are handled in playCards with a penalty draw)
+          if (currentPlayCard && !isPowerCard(currentPlayCard)) {
+              if (playerDeck.length === 0) setWinner("player");
+              if (computerDeck.length === 0) setWinner("computer");
+          }
       }
-  }, [playerDeck, computerDeck, gameStart]);
+  }, [playerDeck, computerDeck, gameStart, winner, currentPlayCard]);
 
 
   return (
@@ -567,11 +697,11 @@ export default function Home() {
           </div>
 
           {/* Play Area */}
-          <div className="flex-[2] flex items-center justify-center gap-16 relative">
+          <div className="flex-[2] flex items-center justify-center gap-24 relative">
             {/* Draw/Pass Pile */}
             <div 
                 onClick={handleDrawClick}
-                className={`relative w-32 h-44 bg-blue-900 rounded-xl border-4 border-white shadow-2xl cursor-pointer hover:scale-105 transition-all transform flex items-center justify-center group ${turn !== "player" ? "opacity-50 cursor-not-allowed grayscale" : "hover:shadow-blue-500/50"}`}
+                className={`relative w-36 h-52 bg-blue-900 rounded-xl border-4 border-white shadow-2xl cursor-pointer hover:scale-105 transition-all transform flex items-center justify-center group ${turn !== "player" ? "opacity-50 cursor-not-allowed grayscale" : "hover:shadow-blue-500/50"} ${deckRecycled ? "ring-4 ring-yellow-400 ring-opacity-75" : ""}`}
                 style={{
                     backgroundImage: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
                 }}
@@ -581,32 +711,126 @@ export default function Home() {
                         {skipActive ? "SKIP" : (penaltyStack > 0 ? "PENALTY" : "DRAW")}
                     </span>
                     {skipActive && <span className="text-xs text-white/80">Tap to Pass</span>}
+                    <span className="text-xs text-white/60 block mt-1">{drawPile.length} cards</span>
                 </div>
-                
+
                 {penaltyStack > 0 && (
                     <div className="absolute -top-4 -right-4 bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-white shadow-lg text-lg animate-bounce">
                         +{penaltyStack}
                     </div>
                 )}
+
+                {/* Deck Recycled Indicator */}
+                {deckRecycled && (
+                    <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-black px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap animate-bounce shadow-lg">
+                        ♻️ Deck Recycled!
+                    </div>
+                )}
             </div>
 
             {/* Current Card Area */}
-            <div 
-                className="w-40 h-52 border-4 border-dashed border-white/30 rounded-2xl flex items-center justify-center bg-white/5 backdrop-blur-sm"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-            >
-                <AnimatePresence mode="wait">
-                    {currentPlayCard && (
-                        <div className="transform scale-125">
-                            <Card
-                                key={currentPlayCard.id}
-                                card={currentPlayCard}
-                                className="shadow-2xl"
-                            />
+            <div className="relative flex items-center gap-2">
+                {/* Q Pair Card - shown when Q was paired */}
+                {qPairCard && (
+                    <div className="absolute -left-28 top-1/2 transform -translate-y-1/2 z-20">
+                        <div className="relative">
+                            <div className="transform scale-90 opacity-80">
+                                <Card
+                                    card={qPairCard}
+                                    className="shadow-xl border-2 border-purple-400"
+                                />
+                            </div>
+                            <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-purple-500 text-white px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">
+                                OR Q
+                            </div>
                         </div>
-                    )}
-                </AnimatePresence>
+                    </div>
+                )}
+                
+                <div
+                    className={`w-56 h-72 border-4 border-dashed rounded-2xl flex items-center justify-center bg-white/5 backdrop-blur-sm ${qPairCard ? "border-purple-400/50" : "border-white/30"} relative overflow-visible`}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleDrop}
+                >
+                    {/* Stacked previous cards - more visible rotations */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        {visibleStack.map((card, index) => {
+                            // More pronounced rotations and offsets for visibility
+                            const rotation = (index % 2 === 0 ? -1 : 1) * (8 + index * 6);
+                            const offsetX = (index % 2 === 0 ? -1 : 1) * (15 + index * 8);
+                            const offsetY = -5 + index * 3;
+                            const opacity = 0.5 + (index / visibleStack.length) * 0.4;
+                            const scale = 1.15;
+                            
+                            return (
+                                <motion.div
+                                    key={card.id}
+                                    className="absolute"
+                                    initial={{ 
+                                        scale: 1.5, 
+                                        opacity: 0, 
+                                        y: -80,
+                                        rotate: 0 
+                                    }}
+                                    animate={{ 
+                                        scale: scale,
+                                        opacity: opacity,
+                                        x: offsetX,
+                                        y: offsetY,
+                                        rotate: rotation
+                                    }}
+                                    transition={{ 
+                                        duration: 0.4,
+                                        ease: "easeOut"
+                                    }}
+                                    style={{ zIndex: index }}
+                                >
+                                    <Card
+                                        card={card}
+                                        className="shadow-lg"
+                                    />
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Current card on top - bigger */}
+                    <AnimatePresence mode="wait">
+                        {currentPlayCard && (
+                            <motion.div 
+                                key={currentPlayCard.id}
+                                className="relative z-10"
+                                initial={{ 
+                                    scale: 0.5, 
+                                    opacity: 0, 
+                                    y: -100,
+                                    rotate: -20
+                                }}
+                                animate={{ 
+                                    scale: 1.4, 
+                                    opacity: 1, 
+                                    y: 0,
+                                    rotate: 0
+                                }}
+                                exit={{ 
+                                    scale: 1.2, 
+                                    opacity: 0.5,
+                                    transition: { duration: 0.2 }
+                                }}
+                                transition={{ 
+                                    type: "spring",
+                                    stiffness: 300,
+                                    damping: 20
+                                }}
+                            >
+                                <Card
+                                    card={currentPlayCard}
+                                    className="shadow-2xl ring-2 ring-white/30"
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
             {/* Play Selected Button */}
@@ -635,15 +859,12 @@ export default function Home() {
                   const isJack = card.num === 'J';
                   const highlightSkip = skipActive && isJack;
                   
-                  // Suggest Pair for Q or others
+                  // Suggest Pair - ONLY for Q + same color NORMAL card
                   let highlightPair = false;
                   if (selectedCards.length === 1 && !isSelected) {
                       const first = selectedCards[0];
-                      if (first.num === card.num) {
-                          highlightPair = true;
-                      }
-                      // Queen Rule: Q + Same Color
-                      if (first.num === "Q" && first.color === card.color) {
+                      // Only Q can pair, and only with normal cards (not A, 2, J, K, Q) of same color
+                      if (first.num === "Q" && first.color === card.color && isNormalCard(card)) {
                           highlightPair = true;
                       }
                   }

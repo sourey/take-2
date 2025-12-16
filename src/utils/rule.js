@@ -48,3 +48,10 @@ export const getCardEffect = (card) => {
 export const checkWinCondition = (deck) => {
   return deck.length === 0;
 };
+
+// Power cards that cannot finish the game
+export const POWER_CARDS = ["A", "2", "Q", "J"];
+
+export const isPowerCard = (card) => {
+  return card && POWER_CARDS.includes(card.num);
+};

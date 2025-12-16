@@ -25,7 +25,7 @@ export const GameRules = ({ isDarkTheme }) => {
         </div>
 
         <div>
-          <h4 className="font-bold text-red-500">Special Cards</h4>
+          <h4 className="font-bold text-red-500">Power Cards (A, 2, Q, J)</h4>
           <ul className="space-y-2 mt-1">
             <li>
               <span className="font-bold">A (Ace):</span> Can be played anytime if color matches. Allows you to <strong>Change Color</strong>. Can be played on another Ace.
@@ -33,8 +33,10 @@ export const GameRules = ({ isDarkTheme }) => {
             <li>
               <span className="font-bold">Q (Queen):</span> 
               <ul className="list-circle pl-4 mt-1">
-                <li>Single Play: Changes color (if matching number), but you <strong>Draw 1 Penalty Card</strong>.</li>
-                <li>Pair Play: Play with any card of <strong>SAME COLOR</strong> to shed both. No penalty!</li>
+                <li>Single Play: Changes color, but you <strong>Draw 1 Penalty Card</strong>.</li>
+                <li>Pair Play: Play Q with a <strong>NORMAL card</strong> (3-10, K) of <strong>SAME COLOR</strong>. No penalty!</li>
+                <li><em>Cannot pair with power cards (A, 2, J)</em></li>
+                <li><strong>After Q Pair:</strong> Next player can match against EITHER the Q or the paired card!</li>
               </ul>
             </li>
             <li>
@@ -43,6 +45,22 @@ export const GameRules = ({ isDarkTheme }) => {
             <li>
               <span className="font-bold">2:</span> Next player must <strong>Draw 2</strong>. Can be chained with another 2 to stack penalty.
             </li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-bold text-purple-500">Finishing Rule</h4>
+          <p><strong>Power cards (A, 2, Q, J) cannot finish the game!</strong> If played as your last card, you must draw 1 card from the stack.</p>
+        </div>
+
+        <div>
+          <h4 className="font-bold text-green-500">Starting Card Rule</h4>
+          <p>If the first card is:</p>
+          <ul className="list-disc pl-4">
+            <li><strong>A:</strong> First player chooses active color</li>
+            <li><strong>2:</strong> First player draws 2 cards</li>
+            <li><strong>Q:</strong> First player draws 1 card</li>
+            <li><strong>J:</strong> First player&apos;s turn is skipped</li>
           </ul>
         </div>
       </div>
