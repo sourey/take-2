@@ -1,70 +1,82 @@
-import React from "react";
+import React, { useState } from "react";
 
 export const GameRules = ({ isDarkTheme }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // Theme-aware colors
+  const textMain = isDarkTheme ? "text-gray-200" : "text-gray-700";
+  const textMuted = isDarkTheme ? "text-gray-400" : "text-gray-500";
+  const textStrong = isDarkTheme ? "text-white" : "text-gray-900";
+  const borderColor = isDarkTheme ? "border-white/10" : "border-gray-200";
+  
   return (
-    <div
-      className={`absolute right-4 top-1/2 transform -translate-y-1/2 w-64 p-4 rounded-lg shadow-lg ${
-        isDarkTheme ? "bg-gray-800 text-white" : "bg-white text-gray-900"
-      } text-sm overflow-y-auto max-h-[80vh]`}
-    >
-      <h3 className="font-bold text-lg mb-2 border-b pb-1">Game Rules</h3>
+    <>
+      {/* Mobile toggle button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`md:hidden fixed top-4 right-4 z-50 w-10 h-10 rounded-full shadow-lg flex items-center justify-center text-lg ${
+          isDarkTheme ? "bg-gray-800 text-white" : "bg-white text-gray-900"
+        }`}
+      >
+        {isOpen ? "✕" : "📋"}
+      </button>
+
+      {/* Rules panel - hidden on mobile unless toggled, always visible on desktop */}
+      <div
+        className={`fixed md:absolute right-0 md:right-4 top-0 md:top-1/2 md:transform md:-translate-y-1/2 
+          w-full md:w-56 h-full md:h-auto md:max-h-[85vh] p-4 md:p-3 md:rounded-lg shadow-lg 
+          ${isDarkTheme ? "bg-gray-800/98 md:bg-gray-800/95 text-white" : "bg-white/98 md:bg-white/95 text-gray-900 border-l md:border border-gray-200"} 
+          text-xs overflow-y-auto backdrop-blur-sm z-40
+          transition-transform duration-300 ease-in-out
+          ${isOpen ? "translate-x-0" : "translate-x-full"} md:translate-x-0`}
+      >
+        <h3 className={`font-bold text-base mb-2 border-b ${borderColor} pb-1 mt-12 md:mt-0`}>📋 Rules</h3>
       
-      <div className="space-y-3">
+      <div className="space-y-2">
+        {/* How to Play */}
         <div>
-          <h4 className="font-bold text-yellow-500">Objective</h4>
-          <p>Shed all your cards to win!</p>
+          <p className={`${isDarkTheme ? "text-yellow-400" : "text-yellow-600"} font-semibold mb-1`}>🎯 Goal: Empty your hand!</p>
+          <p className={textMain}>Match by <strong className={textStrong}>suit</strong> or <strong className={textStrong}>number</strong></p>
         </div>
 
-        <div>
-          <h4 className="font-bold text-blue-500">Basic Play</h4>
-          <ul className="list-disc pl-4">
-            <li>Match <strong>Active Color</strong></li>
-            <li>Match <strong>Card Number</strong></li>
-            <li>Matching Number changes Active Color</li>
-          </ul>
+        {/* Power Cards */}
+        <div className={`border-t ${borderColor} pt-2`}>
+          <p className={`${isDarkTheme ? "text-red-400" : "text-red-600"} font-semibold mb-1`}>⚡ Power Cards</p>
+          <div className={`space-y-1 ${textMain}`}>
+            <p><strong className={textStrong}>A</strong> → Change suit (play on same suit or A)</p>
+            <p><strong className={textStrong}>2</strong> → Next player +2 cards (stackable)</p>
+            <p><strong className={textStrong}>J</strong> → Skip next player (counter with J)</p>
+            <p><strong className={textStrong}>Q</strong> → Draw 1 to change suit</p>
+          </div>
         </div>
 
-        <div>
-          <h4 className="font-bold text-red-500">Power Cards (A, 2, Q, J)</h4>
-          <ul className="space-y-2 mt-1">
-            <li>
-              <span className="font-bold">A (Ace):</span> Can be played anytime if color matches. Allows you to <strong>Change Color</strong>. Can be played on another Ace.
-            </li>
-            <li>
-              <span className="font-bold">Q (Queen):</span> 
-              <ul className="list-circle pl-4 mt-1">
-                <li>Single Play: Changes color, but you <strong>Draw 1 Penalty Card</strong>.</li>
-                <li>Pair Play: Play Q with a <strong>NORMAL card</strong> (3-10, K) of <strong>SAME COLOR</strong>. No penalty!</li>
-                <li><em>Cannot pair with power cards (A, 2, J)</em></li>
-                <li><strong>After Q Pair:</strong> Next player can match against EITHER the Q or the paired card!</li>
-              </ul>
-            </li>
-            <li>
-              <span className="font-bold">J (Jack):</span> Skips next player&apos;s turn. Can be countered by playing another Jack to pass the skip.
-            </li>
-            <li>
-              <span className="font-bold">2:</span> Next player must <strong>Draw 2</strong>. Can be chained with another 2 to stack penalty.
-            </li>
-          </ul>
+        {/* Queen Pair */}
+        <div className={`border-t ${borderColor} pt-2`}>
+          <p className={`${isDarkTheme ? "text-purple-400" : "text-purple-600"} font-semibold mb-1`}>👑 Queen Pair</p>
+          <p className={textMain}>Q + same suit normal card (3-10, K)</p>
+          <p className={`${textMuted} text-[10px]`}>No penalty! Next player matches either card.</p>
         </div>
 
-        <div>
-          <h4 className="font-bold text-purple-500">Finishing Rule</h4>
-          <p><strong>Power cards (A, 2, Q, J) cannot finish the game!</strong> If played as your last card, you must draw 1 card from the stack.</p>
+        {/* Important */}
+        <div className={`border-t ${borderColor} pt-2`}>
+          <p className={`${isDarkTheme ? "text-green-400" : "text-green-600"} font-semibold mb-1`}>⚠️ Important</p>
+          <p className={textMain}>Can&apos;t win with power card (A, 2, Q, J)</p>
+          <p className={`${textMuted} text-[10px]`}>You&apos;ll draw 1 card instead.</p>
         </div>
 
-        <div>
-          <h4 className="font-bold text-green-500">Starting Card Rule</h4>
-          <p>If the first card is:</p>
-          <ul className="list-disc pl-4">
-            <li><strong>A:</strong> First player chooses active color</li>
-            <li><strong>2:</strong> First player draws 2 cards</li>
-            <li><strong>Q:</strong> First player draws 1 card</li>
-            <li><strong>J:</strong> First player&apos;s turn is skipped</li>
-          </ul>
+        {/* Starting Card */}
+        <div className={`border-t ${borderColor} pt-2`}>
+          <p className={`${isDarkTheme ? "text-blue-400" : "text-blue-600"} font-semibold mb-1`}>🃏 First Card Effects</p>
+          <div className={`${textMain} grid grid-cols-2 gap-x-2`}>
+            <span><strong className={textStrong}>A</strong> → Pick suit</span>
+            <span><strong className={textStrong}>2</strong> → +2 cards</span>
+            <span><strong className={textStrong}>Q</strong> → +1 card</span>
+            <span><strong className={textStrong}>J</strong> → Skip turn</span>
+          </div>
         </div>
       </div>
     </div>
+    </>
   );
 };
 

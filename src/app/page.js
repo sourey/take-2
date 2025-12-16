@@ -577,15 +577,15 @@ export default function Home() {
       {/* Content Overlay */}
       <div className="relative z-10 w-full h-full">
       {!gameStart ? (
-        <div className="flex flex-col justify-center items-center h-screen">
-          <h1 className="text-6xl font-bold mb-8 text-white drop-shadow-lg">TAKE 2</h1>
-          <div className="flex flex-col gap-4 mb-8 text-black w-64">
+        <div className="flex flex-col justify-center items-center h-screen px-4">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 md:mb-8 text-white drop-shadow-lg">TAKE 2</h1>
+          <div className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8 text-black w-full max-w-xs">
             <input
               type="text"
               placeholder="Enter your name"
               value={playerName}
               onChange={handlePlayerNameChange}
-              className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90"
+              className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
             />
             <input
               type="number"
@@ -594,32 +594,32 @@ export default function Home() {
               onChange={handleGameCardNumChange}
               min="1"
               max="26"
-              className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90"
+              className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
             />
           </div>
           <button
-            className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-4 px-12 rounded-full transition-all transform hover:scale-105 shadow-xl border-4 border-yellow-600 text-xl"
+            className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 md:py-4 md:px-12 rounded-full transition-all transform hover:scale-105 shadow-xl border-4 border-yellow-600 text-lg md:text-xl"
             onClick={startGame}
           >
             DEAL CARDS
           </button>
         </div>
       ) : (
-        <div className="w-full h-screen flex flex-col p-4 relative">
+        <div className="w-full h-screen flex flex-col p-2 sm:p-4 relative overflow-hidden">
             {/* Winner Overlay */}
             {winner && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
                     <div className="text-center">
-                        <h2 className="text-6xl font-bold text-white mb-4 drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]">
+                        <h2 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white mb-3 sm:mb-4 drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]">
                             {winner === "player" ? "YOU WIN!" : "COMPUTER WINS!"}
                         </h2>
-                        <p className="text-white text-xl mb-4">Returning to menu in 5 seconds...</p>
+                        <p className="text-white text-sm sm:text-xl mb-3 sm:mb-4">Returning to menu in 5 seconds...</p>
                         <button 
                             onClick={() => {
                                 setGameStart(false);
                                 setWinner(null);
                             }}
-                            className="bg-white text-black px-6 py-3 rounded-full font-bold hover:bg-gray-200"
+                            className="bg-white text-black px-4 sm:px-6 py-2 sm:py-3 rounded-full font-bold hover:bg-gray-200 text-sm sm:text-base"
                         >
                             Return Now
                         </button>
@@ -629,15 +629,15 @@ export default function Home() {
 
             {/* Color Picker Overlay */}
             {showColorPicker && (
-                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white p-6 rounded-xl shadow-2xl border-4 border-yellow-500">
-                        <h3 className="text-xl font-bold text-black mb-4">Pick a Color</h3>
-                        <div className="flex gap-4">
+                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+                    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-2xl border-4 border-yellow-500">
+                        <h3 className="text-lg sm:text-xl font-bold text-black mb-3 sm:mb-4 text-center">Pick a Suit</h3>
+                        <div className="flex gap-2 sm:gap-4">
                             {colors.map(c => (
                                 <button
                                     key={c}
                                     onClick={() => handleColorPick(c)}
-                                    className={`w-16 h-16 text-4xl flex items-center justify-center rounded-full border-2 transition-transform hover:scale-110 ${
+                                    className={`w-12 h-12 sm:w-16 sm:h-16 text-2xl sm:text-4xl flex items-center justify-center rounded-full border-2 transition-transform hover:scale-110 active:scale-95 ${
                                         isRedColor(c) ? "border-red-500 text-red-500 bg-red-50" : "border-black text-black bg-gray-50"
                                     }`}
                                 >
@@ -653,23 +653,23 @@ export default function Home() {
             <GameRules isDarkTheme={isDarkTheme} />
 
           {/* Header */}
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0 mb-2 sm:mb-4">
             {/* Active Color Display - Enhanced */}
-            <div className="flex items-center bg-black/40 backdrop-blur-md px-6 py-3 rounded-full border border-white/20 shadow-lg">
-                <span className="text-white font-bold mr-3 text-lg">ACTIVE SUIT</span>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-3xl bg-white shadow-inner ${
+            <div className="flex items-center bg-black/40 backdrop-blur-md px-3 sm:px-6 py-2 sm:py-3 rounded-full border border-white/20 shadow-lg">
+                <span className="text-white font-bold mr-2 sm:mr-3 text-sm sm:text-lg hidden sm:inline">ACTIVE SUIT</span>
+                <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-xl sm:text-3xl bg-white shadow-inner ${
                     isRedColor(activeColor) ? "text-red-600" : "text-black"
                 }`}>
                     {activeColor}
                 </div>
             </div>
 
-            <div className="text-lg font-bold text-white bg-black/40 backdrop-blur-md px-8 py-3 rounded-full border border-white/20 shadow-lg min-w-[300px] text-center">
+            <div className="text-xs sm:text-lg font-bold text-white bg-black/40 backdrop-blur-md px-4 sm:px-8 py-2 sm:py-3 rounded-full border border-white/20 shadow-lg text-center max-w-[200px] sm:max-w-none sm:min-w-[300px] truncate">
                 {message || (turn === "player" ? "Your Turn" : "Computer's Turn")}
             </div>
             <button
               onClick={toggleTheme}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 ${
+              className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-sm sm:text-base ${
                 isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
               }`}
             >
@@ -678,8 +678,8 @@ export default function Home() {
           </div>
 
           {/* Computer Area */}
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="flex -space-x-12">
+          <div className="flex-shrink-0 flex flex-col items-center justify-center py-1 sm:py-2">
+            <div className="flex -space-x-8 sm:-space-x-10 md:-space-x-12">
               <AnimatePresence>
                 {computerDeck.map((card, index) => (
                   <Card
@@ -691,56 +691,56 @@ export default function Home() {
                 ))}
               </AnimatePresence>
             </div>
-            <div className="mt-2 font-bold text-white bg-black/30 px-4 py-1 rounded-full backdrop-blur-sm">
+            <div className="mt-1 sm:mt-2 text-xs sm:text-base font-bold text-white bg-black/30 px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm">
                 Computer ({computerDeck.length})
             </div>
           </div>
 
           {/* Play Area */}
-          <div className="flex-[2] flex items-center justify-center gap-24 relative">
+          <div className="flex-1 flex items-center justify-center gap-4 sm:gap-8 md:gap-24 relative">
             {/* Draw/Pass Pile */}
             <div 
                 onClick={handleDrawClick}
-                className={`relative w-36 h-52 bg-blue-900 rounded-xl border-4 border-white shadow-2xl cursor-pointer hover:scale-105 transition-all transform flex items-center justify-center group ${turn !== "player" ? "opacity-50 cursor-not-allowed grayscale" : "hover:shadow-blue-500/50"} ${deckRecycled ? "ring-4 ring-yellow-400 ring-opacity-75" : ""}`}
+                className={`relative w-20 h-28 sm:w-28 sm:h-40 md:w-36 md:h-52 bg-blue-900 rounded-lg sm:rounded-xl border-2 sm:border-4 border-white shadow-2xl cursor-pointer hover:scale-105 transition-all transform flex items-center justify-center group ${turn !== "player" ? "opacity-50 cursor-not-allowed grayscale" : "hover:shadow-blue-500/50"} ${deckRecycled ? "ring-2 sm:ring-4 ring-yellow-400 ring-opacity-75" : ""}`}
                 style={{
                     backgroundImage: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
                 }}
             >
                 <div className="text-center">
-                    <span className="text-white font-black text-xl block drop-shadow-md">
+                    <span className="text-white font-black text-sm sm:text-lg md:text-xl block drop-shadow-md">
                         {skipActive ? "SKIP" : (penaltyStack > 0 ? "PENALTY" : "DRAW")}
                     </span>
-                    {skipActive && <span className="text-xs text-white/80">Tap to Pass</span>}
-                    <span className="text-xs text-white/60 block mt-1">{drawPile.length} cards</span>
+                    {skipActive && <span className="text-[10px] sm:text-xs text-white/80">Tap to Pass</span>}
+                    <span className="text-[10px] sm:text-xs text-white/60 block mt-0.5 sm:mt-1">{drawPile.length} cards</span>
                 </div>
 
                 {penaltyStack > 0 && (
-                    <div className="absolute -top-4 -right-4 bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-white shadow-lg text-lg animate-bounce">
+                    <div className="absolute -top-2 -right-2 sm:-top-4 sm:-right-4 bg-red-600 text-white w-6 h-6 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 border-white shadow-lg text-xs sm:text-lg animate-bounce">
                         +{penaltyStack}
                     </div>
                 )}
 
                 {/* Deck Recycled Indicator */}
                 {deckRecycled && (
-                    <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-black px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap animate-bounce shadow-lg">
-                        ♻️ Deck Recycled!
+                    <div className="absolute -bottom-8 sm:-bottom-12 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-black px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap animate-bounce shadow-lg">
+                        ♻️ Recycled!
                     </div>
                 )}
             </div>
 
             {/* Current Card Area */}
             <div className="relative flex items-center gap-2">
-                {/* Q Pair Card - shown when Q was paired */}
+                {/* Q Pair Card - shown when Q was paired - hidden on small screens */}
                 {qPairCard && (
-                    <div className="absolute -left-28 top-1/2 transform -translate-y-1/2 z-20">
+                    <div className="hidden sm:block absolute -left-20 md:-left-28 top-1/2 transform -translate-y-1/2 z-20">
                         <div className="relative">
-                            <div className="transform scale-90 opacity-80">
+                            <div className="transform scale-75 md:scale-90 opacity-80">
                                 <Card
                                     card={qPairCard}
                                     className="shadow-xl border-2 border-purple-400"
                                 />
                             </div>
-                            <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-purple-500 text-white px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">
+                            <div className="absolute -bottom-5 md:-bottom-6 left-1/2 transform -translate-x-1/2 bg-purple-500 text-white px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-bold whitespace-nowrap">
                                 OR Q
                             </div>
                         </div>
@@ -748,7 +748,7 @@ export default function Home() {
                 )}
                 
                 <div
-                    className={`w-56 h-72 border-4 border-dashed rounded-2xl flex items-center justify-center bg-white/5 backdrop-blur-sm ${qPairCard ? "border-purple-400/50" : "border-white/30"} relative overflow-visible`}
+                    className={`w-28 h-36 sm:w-40 sm:h-52 md:w-56 md:h-72 border-2 sm:border-4 border-dashed rounded-xl sm:rounded-2xl flex items-center justify-center bg-white/5 backdrop-blur-sm ${qPairCard ? "border-purple-400/50" : "border-white/30"} relative overflow-visible`}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
                 >
@@ -835,10 +835,10 @@ export default function Home() {
 
             {/* Play Selected Button */}
             {selectedCards.length > 0 && turn === "player" && (
-                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-20 z-20">
+                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-12 sm:translate-y-20 z-20">
                     <button
                         onClick={handlePlaySelected}
-                        className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-400 hover:to-green-600 text-white font-bold py-3 px-8 rounded-full shadow-xl animate-bounce border-2 border-green-300 text-lg"
+                        className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-400 hover:to-green-600 text-white font-bold py-2 px-4 sm:py-3 sm:px-8 rounded-full shadow-xl animate-bounce border-2 border-green-300 text-sm sm:text-lg"
                     >
                         PLAY {selectedCards.length} CARD{selectedCards.length > 1 ? 'S' : ''}
                     </button>
@@ -847,11 +847,11 @@ export default function Home() {
           </div>
 
           {/* Player Area */}
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="mb-2 font-bold text-white bg-black/30 px-4 py-1 rounded-full backdrop-blur-sm">
+          <div className="flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4">
+            <div className="mb-1 sm:mb-2 text-xs sm:text-base font-bold text-white bg-black/30 px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm">
                 {playerName || "Player"} ({playerDeck.length})
             </div>
-            <div className="flex -space-x-8 overflow-x-auto p-4 max-w-full min-h-[160px] items-end pb-8 px-12">
+            <div className="flex -space-x-6 sm:-space-x-8 overflow-x-auto p-2 sm:p-4 max-w-full min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-12">
               <AnimatePresence>
                 {playerDeck.map((card, index) => {
                   const isSelected = selectedCards.find(c => c.id === card.id);
@@ -876,7 +876,7 @@ export default function Home() {
                       onDragStart={(e) => handleDragStart(e, card)}
                       onClick={() => handleCardClick(card)}
                       className={`transition-all duration-200 cursor-pointer ${
-                          isSelected ? "-translate-y-8 z-10 scale-110" : "hover:-translate-y-4 hover:scale-105"
+                          isSelected ? "-translate-y-4 sm:-translate-y-8 z-10 scale-105 sm:scale-110" : "hover:-translate-y-2 sm:hover:-translate-y-4 hover:scale-105"
                       }`}
                     >
                       <Card
