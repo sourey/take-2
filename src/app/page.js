@@ -55,6 +55,8 @@ export default function Home() {
   const [numPlayers, setNumPlayers] = useState(4); // Total players (1 human + N-1 computers)
   const [isLoaded, setIsLoaded] = useState(false); // Track if we've loaded from storage
   const [assetsLoaded, setAssetsLoaded] = useState(false); // Track if card assets are cached
+  const [showResumePrompt, setShowResumePrompt] = useState(false); // Show resume/new game prompt
+  const [savedGameData, setSavedGameData] = useState(null); // Temporarily hold saved game for resume
   
   // Cool names for computer opponents
   const computerNames = ["Alpha", "Bravo", "Charlie"];
@@ -114,38 +116,18 @@ export default function Home() {
       console.error("Failed to load high score:", e);
     }
     
-    // Try to load saved game state
+    // Check for saved game state - don't auto-load, ask user first
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const state = JSON.parse(saved);
-        // Restore all game state
-        setDeck(state.deck || []);
-        setDrawPile(state.drawPile || []);
-        setDiscardPile(state.discardPile || []);
-        setVisibleStack(state.visibleStack || []);
-        setGameStart(state.gameStart || false);
-        setPlayerDeck(state.playerDeck || []);
-        setComputerDecks(state.computerDecks || []);
-        setPlayerName(state.playerName || "");
-        setGameCardNum(state.gameCardNum || 5);
-        setNumPlayers(state.numPlayers || 4);
-        setCurrentPlayCard(state.currentPlayCard || null);
-        setActiveColor(state.activeColor || null);
-        setIsDarkTheme(state.isDarkTheme !== undefined ? state.isDarkTheme : true);
-        setTurn(state.turn || 0);
-        setMessage(state.message || "");
-        setPenaltyStack(state.penaltyStack || 0);
-        setShowColorPicker(state.showColorPicker || false);
-        setIsStartingColorPick(state.isStartingColorPick || false);
-        setRankings(state.rankings || []);
-        setGameOver(state.gameOver || false);
-        setSkipActive(state.skipActive || false);
-        setQPairCard(state.qPairCard || null);
-        setPlayerMoves(state.playerMoves || []);
-        setFinishMoves(state.finishMoves || {});
-        setIsLoaded(true);
-        return;
+        // Only show resume prompt if there's an active game (not finished)
+        if (state.gameStart && !state.gameOver) {
+          setSavedGameData(state);
+          setShowResumePrompt(true);
+          setIsLoaded(true);
+          return;
+        }
       }
     } catch (e) {
       console.error("Failed to load game state:", e);
@@ -271,6 +253,64 @@ export default function Home() {
     setSelectedCards([]);
     setPlayerMoves([]);
     setFinishMoves({});
+  };
+
+  // Resume saved game
+  const handleResumeGame = () => {
+    if (!savedGameData) return;
+    
+    const state = savedGameData;
+    setDeck(state.deck || []);
+    setDrawPile(state.drawPile || []);
+    setDiscardPile(state.discardPile || []);
+    setVisibleStack(state.visibleStack || []);
+    setGameStart(state.gameStart || false);
+    setPlayerDeck(state.playerDeck || []);
+    setComputerDecks(state.computerDecks || []);
+    setPlayerName(state.playerName || "");
+    setGameCardNum(state.gameCardNum || 5);
+    setNumPlayers(state.numPlayers || 4);
+    setCurrentPlayCard(state.currentPlayCard || null);
+    setActiveColor(state.activeColor || null);
+    setIsDarkTheme(state.isDarkTheme !== undefined ? state.isDarkTheme : true);
+    setTurn(state.turn || 0);
+    setMessage(state.message || "");
+    setPenaltyStack(state.penaltyStack || 0);
+    setShowColorPicker(state.showColorPicker || false);
+    setIsStartingColorPick(state.isStartingColorPick || false);
+    setRankings(state.rankings || []);
+    setGameOver(state.gameOver || false);
+    setSkipActive(state.skipActive || false);
+    setQPairCard(state.qPairCard || null);
+    setPlayerMoves(state.playerMoves || []);
+    setFinishMoves(state.finishMoves || {});
+    
+    setSavedGameData(null);
+    setShowResumePrompt(false);
+  };
+
+  // Start fresh instead of resuming
+  const handleStartFresh = () => {
+    // Clear saved game
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      console.error("Failed to clear saved game:", e);
+    }
+    
+    // Create fresh deck
+    const initialDeck = [];
+    for (let i = 0; i < colors.length; i++) {
+      for (let j = 0; j < cardNums.length; j++) {
+        const uniqueId = `${i}-${j}-${Math.random().toString(36).substr(2, 9)}`;
+        initialDeck.push({ id: uniqueId, color: colors[i], num: cardNums[j] });
+      }
+    }
+    shuffleDeck(initialDeck);
+    setDeck(initialDeck);
+    
+    setSavedGameData(null);
+    setShowResumePrompt(false);
   };
 
   // Rankings Effect: Confetti when any player finishes
@@ -752,14 +792,33 @@ export default function Home() {
     let nextPenalty = penaltyStack;
     let nextSkipActive = false;
     
+    // Calculate deck length AFTER playing cards (for finish checks)
+    let currentDeckLength;
+    if (who === 0) {
+      currentDeckLength = playerDeck.length - cards.length;
+    } else {
+      currentDeckLength = computerDecks[who - 1].length - cards.length;
+    }
+    
     const effect = getCardEffect(primaryCard);
     const nextPlayerName = getTurnPlayerName(nextTurn);
 
     if (effect) {
          if (primaryCard.num === "Q") {
              if (cards.length === 1) {
+                 // Q penalty: draw 1 card (this also prevents finishing with Q)
                  drawCard(who, 1);
-                 setMessage(`${whoName} played Queen and drew 1 card.`);
+                 if (currentDeckLength === 0) {
+                     // Player tried to finish with Q - the draw above already penalizes
+                     setMessage(`${whoName} cannot finish with Queen! Drew 1 card.`);
+                 } else {
+                     setMessage(`${whoName} played Queen and drew 1 card.`);
+                 }
+                 // Skip the separate "cannot finish" check below for Q
+                 setPenaltyStack(nextPenalty);
+                 setSkipActive(nextSkipActive);
+                 setTurn(getNextActiveTurn(who));
+                 return;
              } else {
                  setMessage(`${whoName} played Queen Pair!`);
              }
@@ -818,14 +877,7 @@ export default function Home() {
     setPenaltyStack(nextPenalty);
     setSkipActive(nextSkipActive);
 
-    // Get current deck length for the player who just played
-    let currentDeckLength;
-    if (who === 0) {
-      currentDeckLength = playerDeck.length - cards.length;
-    } else {
-      currentDeckLength = computerDecks[who - 1].length - cards.length;
-    }
-    
+    // Check if player finished (currentDeckLength calculated earlier)
     if (currentDeckLength === 0) {
         // Check if any played card is a power card - power cards cannot finish the game
         const playedPowerCard = cards.some(card => isPowerCard(card));
@@ -1238,6 +1290,59 @@ export default function Home() {
       >
         <div className="felt-noise w-full h-full"></div>
       </div>
+
+      {/* Resume Game Prompt */}
+      {showResumePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-600"
+          >
+            <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">Welcome Back!</h2>
+            <p className="text-slate-300 text-center mb-6 text-sm sm:text-base">
+              You have a game in progress
+              {savedGameData?.playerName && (
+                <span className="block text-yellow-400 font-semibold mt-1">
+                  Playing as {savedGameData.playerName}
+                </span>
+              )}
+            </p>
+            
+            {savedGameData && (
+              <div className="bg-slate-700/50 rounded-lg p-3 mb-6 text-sm">
+                <div className="flex justify-between text-slate-300">
+                  <span>Your cards:</span>
+                  <span className="font-bold text-white">{savedGameData.playerDeck?.length || 0}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Players:</span>
+                  <span className="font-bold text-white">{savedGameData.numPlayers || 4}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Your moves:</span>
+                  <span className="font-bold text-white">{savedGameData.playerMoves?.[0] || 0}</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleResumeGame}
+                className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all transform hover:scale-105 shadow-lg"
+              >
+                ▶️ Resume Game
+              </button>
+              <button
+                onClick={handleStartFresh}
+                className="w-full py-3 px-6 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-500 hover:to-slate-600 text-white font-bold rounded-xl transition-all transform hover:scale-105 shadow-lg"
+              >
+                🆕 New Game
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Content Overlay */}
       <div className="relative z-10 w-full h-full">
