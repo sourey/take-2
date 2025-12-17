@@ -68,9 +68,9 @@ export const GameRules = ({ isDarkTheme }) => {
         <div className={`border-t ${borderColor} pt-2`}>
           <p className={`${isDarkTheme ? "text-blue-400" : "text-blue-600"} font-semibold mb-1`}>🃏 First Card Effects</p>
           <div className={`${textMain} grid grid-cols-2 gap-x-2`}>
-            <span><strong className={textStrong}>A</strong> → Pick suit</span>
-            <span><strong className={textStrong}>2</strong> → +2 cards</span>
-            <span><strong className={textStrong}>Q</strong> → +1 card</span>
+            <span><strong className={textStrong}>A</strong> → Pick suit & play</span>
+            <span><strong className={textStrong}>2</strong> → +2 & skip</span>
+            <span><strong className={textStrong}>Q</strong> → +1 & skip</span>
             <span><strong className={textStrong}>J</strong> → Skip turn</span>
           </div>
         </div>

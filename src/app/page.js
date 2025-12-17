@@ -25,6 +25,20 @@ const cardNums = [
   "K",
 ];
 
+// Sort cards by color then by number for better organization
+const sortCardsByColor = (cards) => {
+  const colorOrder = { "♠": 0, "♣": 1, "♥️": 2, "♦": 3 };
+  const numOrder = { "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13 };
+  
+  return [...cards].sort((a, b) => {
+    // First sort by color
+    const colorDiff = colorOrder[a.color] - colorOrder[b.color];
+    if (colorDiff !== 0) return colorDiff;
+    // Then sort by number within same color
+    return numOrder[a.num] - numOrder[b.num];
+  });
+};
+
 const STORAGE_KEY = "take2-game-state";
 const HIGH_SCORE_KEY = "take2-high-score";
 
@@ -43,7 +57,7 @@ export default function Home() {
   const [assetsLoaded, setAssetsLoaded] = useState(false); // Track if card assets are cached
   
   // Cool names for computer opponents
-  const computerNames = ["Ace", "Shadow", "Blaze"];
+  const computerNames = ["Alpha", "Bravo", "Charlie"];
   const [currentPlayCard, setCurrentPlayCard] = useState(null);
   const [activeColor, setActiveColor] = useState(null);
   const [isDarkTheme, setIsDarkTheme] = useState(true);
@@ -75,6 +89,17 @@ export default function Home() {
       console.log("Card assets preloaded and cached");
       setAssetsLoaded(true);
     });
+    
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('Service Worker registered:', registration.scope);
+        })
+        .catch((error) => {
+          console.log('Service Worker registration failed:', error);
+        });
+    }
   }, []);
 
   // Initialize game - load from storage or create new deck
@@ -248,25 +273,48 @@ export default function Home() {
     setFinishMoves({});
   };
 
-  // Rankings Effect: Confetti when player finishes first
+  // Rankings Effect: Confetti when any player finishes
   useEffect(() => {
-    if (rankings.length > 0 && rankings[0] === 0) {
-      // Player got 1st place!
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        zIndex: 100,
-      });
-    }
+    if (rankings.length === 0) return;
+    
+    const lastFinisher = rankings[rankings.length - 1];
+    const place = rankings.length;
+    
+    // Trigger confetti for each player that finishes
+    const triggerFinishConfetti = (place, isHuman) => {
+      if (place === 1) {
+        // 1st place - big celebration
+        const count = 200;
+        const defaults = { origin: { y: 0.7 }, zIndex: 9999 };
+        
+        confetti({ ...defaults, spread: 26, startVelocity: 55, particleCount: Math.floor(count * 0.25) });
+        confetti({ ...defaults, spread: 60, particleCount: Math.floor(count * 0.2) });
+        confetti({ ...defaults, spread: 100, decay: 0.91, scalar: 0.8, particleCount: Math.floor(count * 0.35) });
+        confetti({ ...defaults, spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, particleCount: Math.floor(count * 0.1) });
+        confetti({ ...defaults, spread: 120, startVelocity: 45, particleCount: Math.floor(count * 0.1) });
+      } else if (place === 2) {
+        // 2nd place - medium celebration
+        confetti({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.65 },
+          zIndex: 9999,
+          colors: ['#C0C0C0', '#A8A8A8', '#888888', '#FFD700'],
+        });
+      } else if (place === 3) {
+        // 3rd place - small celebration
+        confetti({
+          particleCount: 50,
+          spread: 45,
+          origin: { y: 0.6 },
+          zIndex: 9999,
+          colors: ['#CD7F32', '#B87333', '#A0522D'],
+        });
+      }
+    };
+    
+    triggerFinishConfetti(place, lastFinisher === 0);
   }, [rankings]);
-
-  // Game Over Effect: Just show confetti, don't auto-return (use New Game button)
-  useEffect(() => {
-    if (gameOver && rankings.length > 0 && rankings[0] !== 0) {
-      // Opponent won - no confetti (confetti only for player winning, handled in rankings effect)
-    }
-  }, [gameOver, rankings]);
   
   // Helper to check if a player is still in the game
   const isPlayerActive = (playerIndex) => {
@@ -330,23 +378,25 @@ export default function Home() {
       let showStartColorPicker = false;
       
       if (startCard.num === "2") {
-        // Starting with 2: player draws 2 cards (cannot be stacked)
+        // Starting with 2: player draws 2 cards AND turn is skipped
         const penaltyCards = remainingDeck.slice(0, 2);
         remainingDeck = remainingDeck.slice(2);
         pDeck = [...pDeck, ...penaltyCards];
-        startMessage = `Game Started! Starting card is 2 - ${playerName} draws 2 cards!`;
+        startingTurn = 1; // Skip to computer after penalty
+        startMessage = `Game Started! Starting card is 2 - ${playerName} draws 2 cards, turn skipped!`;
       } else if (startCard.num === "Q") {
-        // Starting with Q: player draws 1 card
+        // Starting with Q: player draws 1 card AND turn is skipped
         const penaltyCards = remainingDeck.slice(0, 1);
         remainingDeck = remainingDeck.slice(1);
         pDeck = [...pDeck, ...penaltyCards];
-        startMessage = `Game Started! Starting card is Q - ${playerName} draws 1 card!`;
+        startingTurn = 1; // Skip to computer after penalty
+        startMessage = `Game Started! Starting card is Q - ${playerName} draws 1 card, turn skipped!`;
       } else if (startCard.num === "J") {
         // Starting with J: player's turn is skipped to next player
         startingTurn = 1; // First computer
         startMessage = `Game Started! Starting card is J - ${playerName}'s turn is skipped!`;
       } else if (startCard.num === "A") {
-        // Starting with A: player chooses active color
+        // Starting with A: player chooses active color AND gets to play
         showStartColorPicker = true;
         startMessage = `Game Started! Starting card is A - ${playerName} choose the active color!`;
       }
@@ -541,6 +591,12 @@ export default function Home() {
              setMessage("Only Q can be paired with same color card (including K)!");
              return;
         }
+        
+        // Q pair can only be played if Q matches the current active color (no color change power)
+        if (firstCard.color !== activeColor) {
+            setMessage("Q pair can only be played matching the current color!");
+            return;
+        }
     }
 
     playCards(0, selectedCards);
@@ -615,6 +671,12 @@ export default function Home() {
         setMessage("Only Q can be paired with same color card (including K)!");
         return;
       }
+      
+      // Q pair can only be played if Q matches the current active color (no color change power)
+      if (firstCard.color !== activeColor) {
+        setMessage("Q pair can only be played matching the current color!");
+        return;
+      }
     }
 
     playCards(0, cardsToPlay);
@@ -676,10 +738,11 @@ export default function Home() {
     let shouldChangeColor = true;
     // Queen Pair Rule: When Q is played with same-color card
     // The non-Q card becomes current, but next player can match against BOTH cards
+    // Q pair does NOT have power to change colors - only about shedding two cards
     if (primaryCard.num === "Q" && cards.length > 1) {
         // Set the Q as the secondary card that next player can also match against
         setQPairCard(primaryCard); // Store the Q for dual matching
-        shouldChangeColor = true; // Color DOES change to the paired card's color
+        shouldChangeColor = false; // Q pair does NOT change color
     }
     if (shouldChangeColor && primaryCard.num !== "A") {
         setActiveColor(lastCard.color);
@@ -923,7 +986,7 @@ export default function Home() {
   };
   
   // Smart card selection for computer
-  const selectSmartCard = (hand, validCards, computerIdx) => {
+  const selectSmartCard = (hand, validCards, computerIdx, currentActiveColor) => {
     if (validCards.length === 0) return null;
     if (validCards.length === 1) return { card: validCards[0], paired: null };
     
@@ -978,8 +1041,12 @@ export default function Home() {
     }
     
     // STRATEGY 4: Queen pairing - try to pair Q with same-color normal card (K is normal)
+    // Q pair can only be played if Q matches the active color (no color change power)
     if (queens.length > 0) {
       for (const queen of queens) {
+        // Only consider Q that matches active color for pairing
+        if (queen.color !== currentActiveColor) continue;
+        
         const pairableCards = hand.filter(c => 
           c.id !== queen.id && 
           c.color === queen.color && 
@@ -1078,7 +1145,7 @@ export default function Home() {
         
         if (validCards.length > 0) {
             // Use smart card selection
-            const selection = selectSmartCard(currentComputerDeck, validCards, computerIndex);
+            const selection = selectSmartCard(currentComputerDeck, validCards, computerIndex, activeColor);
             
             if (selection.paired) {
                 // Play Queen pair
@@ -1725,18 +1792,19 @@ export default function Home() {
             </div>
             <div className="flex -space-x-6 sm:-space-x-8 overflow-visible p-2 sm:p-4 max-w-full min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-12">
               <AnimatePresence>
-                {playerDeck.map((card, index) => {
+                {sortCardsByColor(playerDeck).map((card, index) => {
                   const isSelected = selectedCards.find(c => c.id === card.id);
                   // Highlight playable Jacks if skip is active
                   const isJack = card.num === 'J';
                   const highlightSkip = skipActive && isJack;
                   
                   // Suggest Pair - Q can pair with same color cards (normal cards + K)
+                  // Only highlight if Q matches activeColor (Q pair can't change color)
                   let highlightPair = false;
                   if (selectedCards.length === 1 && !isSelected) {
                       const first = selectedCards[0];
-                      // Q can pair with normal cards + K of same color
-                      if (first.num === "Q" && first.color === card.color && canPairWithQ(card)) {
+                      // Q can pair with normal cards + K of same color, but Q must match activeColor
+                      if (first.num === "Q" && first.color === activeColor && first.color === card.color && canPairWithQ(card)) {
                           highlightPair = true;
                       }
                   }

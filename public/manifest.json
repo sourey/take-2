@@ -1,0 +1,19 @@
+{
+  "name": "TAKE 2 - Card Game",
+  "short_name": "TAKE 2",
+  "description": "A fun multiplayer card game with special powers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#16213e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["games", "entertainment"]
+}
+
