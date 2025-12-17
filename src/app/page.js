@@ -1863,10 +1863,19 @@ export default function Home() {
                                 </div>
                             </div>
                         </div>
-                        {/* Mobile: Show OR Q badge above play area */}
-                        <div className="sm:hidden absolute -top-8 left-1/2 transform -translate-x-1/2 z-30 bg-purple-500 text-white px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shadow-lg flex items-center gap-1">
-                            <span className={`${isRedColor(qPairCard.color) ? "text-red-200" : "text-gray-200"}`}>{qPairCard.color}</span>
-                            OR Q
+                        {/* Mobile: Show small card above play area */}
+                        <div className="sm:hidden absolute -top-20 left-1/2 transform -translate-x-1/2 z-30">
+                            <div className="relative">
+                                <div className="transform scale-50 opacity-90">
+                                    <Card
+                                        card={qPairCard}
+                                        className="shadow-xl border-2 border-purple-400"
+                                    />
+                                </div>
+                                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 bg-purple-500 text-white px-2 py-0.5 rounded-full text-[8px] font-bold whitespace-nowrap shadow-lg">
+                                    OR Q
+                                </div>
+                            </div>
                         </div>
                     </>
                 )}
