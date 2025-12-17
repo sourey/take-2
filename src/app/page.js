@@ -82,6 +82,15 @@ export default function Home() {
   const [finishMoves, setFinishMoves] = useState({}); // { playerIndex: moveCount } when they finished
   const [highScore, setHighScore] = useState(null); // Lowest moves to finish 1st (persistent)
   
+  // Human behavior tracking for smarter AI
+  const [humanPlayHistory, setHumanPlayHistory] = useState({
+    cardsPlayed: [],      // All cards human has played { card, turnNumber }
+    colorCounts: { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 }, // Colors human has played
+    drawCount: 0,         // Times human has drawn (indicates they couldn't play)
+    lastDrawTurn: -1,     // Last turn human drew cards
+    consecutiveDraws: 0,  // How many times in a row human drew
+  });
+  
   // Ref for the play area (drop zone)
   const playAreaRef = useRef(null);
 
@@ -255,6 +264,14 @@ export default function Home() {
     setSelectedCards([]);
     setPlayerMoves([]);
     setFinishMoves({});
+    // Reset human tracking for AI
+    setHumanPlayHistory({
+      cardsPlayed: [],
+      colorCounts: { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 },
+      drawCount: 0,
+      lastDrawTurn: -1,
+      consecutiveDraws: 0,
+    });
   };
 
   // Resume saved game
@@ -465,6 +482,14 @@ export default function Home() {
       // Initialize move tracking: [player, comp1, comp2, comp3...]
       setPlayerMoves(Array(numPlayers).fill(0));
       setFinishMoves({});
+      // Reset human tracking for AI
+      setHumanPlayHistory({
+        cardsPlayed: [],
+        colorCounts: { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 },
+        drawCount: 0,
+        lastDrawTurn: -1,
+        consecutiveDraws: 0,
+      });
     }
   };
 
@@ -502,6 +527,7 @@ export default function Home() {
     if (who === 0) {
       // Player
       setPlayerDeck((prev) => [...prev, ...cardsToDraw]);
+      trackHumanDraw(); // Track for AI awareness - human couldn't play
     } else {
       // Computer (who is 1-based index for computers, so who-1 for array index)
       const computerIndex = who - 1;
@@ -740,6 +766,7 @@ export default function Home() {
     if (who === 0) {
       setPlayerDeck((prev) => prev.filter((c) => !cards.find(pc => pc.id === c.id)));
       setSelectedCards([]); // Always clear selection when player plays
+      trackHumanPlay(cards); // Track for AI awareness
     } else {
       const computerIndex = who - 1;
       setComputerDecks((prev) => {
@@ -829,16 +856,19 @@ export default function Home() {
                  setShowColorPicker(true);
                  return;
              } else {
-                 // Smart Ace: Pick color computer has most of in hand, or most played color
+                 // Smart Ace: Consider both remaining hand AND human's weak colors
                  const computerHand = computerDecks[who - 1] || [];
+                 // Filter out the cards being played (Ace) to get remaining cards
+                 const remainingCards = computerHand.filter(c => !cards.find(pc => pc.id === c.id));
+                 
                  const colorCounts = { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 };
-                 computerHand.forEach(c => {
-                   if (c.num !== "A" && colorCounts[c.color] !== undefined) {
+                 remainingCards.forEach(c => {
+                   if (colorCounts[c.color] !== undefined) {
                      colorCounts[c.color]++;
                    }
                  });
                  
-                 // Pick color with most cards in hand
+                 // Pick color with most cards in remaining hand
                  let bestColor = colors[0];
                  let maxCount = -1;
                  colors.forEach(color => {
@@ -848,20 +878,22 @@ export default function Home() {
                    }
                  });
                  
-                 // If no cards of any color, pick most played (opponents likely don't have)
-                 if (maxCount === 0) {
-                   const discardColorCount = { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 };
-                   discardPile.forEach(c => {
-                     if (discardColorCount[c.color] !== undefined) {
-                       discardColorCount[c.color]++;
+                 // If no cards remaining or tie, consider human's weak colors to hurt them
+                 if (maxCount <= 1) {
+                   const humanWeakColors = getHumanWeakColors();
+                   if (humanWeakColors.length > 0) {
+                     // If we have cards in a color human is weak in, prefer that
+                     const weakColorWithCards = humanWeakColors.find(c => colorCounts[c] > 0);
+                     if (weakColorWithCards) {
+                       bestColor = weakColorWithCards;
+                     } else if (maxCount === 0) {
+                       // No cards left, just pick human's weakest color
+                       bestColor = humanWeakColors[0];
                      }
-                   });
-                   colors.forEach(color => {
-                     if (discardColorCount[color] > maxCount) {
-                       maxCount = discardColorCount[color];
-                       bestColor = color;
-                     }
-                   });
+                   } else if (maxCount === 0) {
+                     // Fallback: pick most played color overall
+                     bestColor = getMostPlayedColor();
+                   }
                  }
                  
                  setActiveColor(bestColor);
@@ -1039,6 +1071,81 @@ export default function Home() {
     };
   };
   
+  // ===== HUMAN BEHAVIOR ANALYSIS FOR SMARTER AI =====
+  
+  // Track when human plays a card
+  const trackHumanPlay = (cards) => {
+    setHumanPlayHistory(prev => {
+      const newColorCounts = { ...prev.colorCounts };
+      cards.forEach(card => {
+        if (newColorCounts[card.color] !== undefined) {
+          newColorCounts[card.color]++;
+        }
+      });
+      return {
+        ...prev,
+        cardsPlayed: [...prev.cardsPlayed, ...cards.map(c => ({ card: c, turn: playerMoves[0] || 0 }))],
+        colorCounts: newColorCounts,
+        consecutiveDraws: 0, // Reset consecutive draws when human plays
+      };
+    });
+  };
+  
+  // Track when human draws cards
+  const trackHumanDraw = () => {
+    setHumanPlayHistory(prev => ({
+      ...prev,
+      drawCount: prev.drawCount + 1,
+      lastDrawTurn: playerMoves[0] || 0,
+      consecutiveDraws: prev.consecutiveDraws + 1,
+    }));
+  };
+  
+  // Analyze what colors human is likely weak in (played a lot = probably low)
+  const getHumanWeakColors = () => {
+    const { colorCounts } = humanPlayHistory;
+    const totalPlayed = Object.values(colorCounts).reduce((a, b) => a + b, 0);
+    if (totalPlayed === 0) return [];
+    
+    // Colors played more than average are likely weak points
+    const avgPlayed = totalPlayed / 4;
+    const weakColors = colors.filter(c => colorCounts[c] > avgPlayed);
+    
+    // Sort by most played (most likely to be weak)
+    return weakColors.sort((a, b) => colorCounts[b] - colorCounts[a]);
+  };
+  
+  // Analyze if human is struggling (drew recently, consecutive draws)
+  const isHumanStruggling = () => {
+    const { consecutiveDraws, drawCount } = humanPlayHistory;
+    const totalMoves = playerMoves[0] || 0;
+    
+    // Human is struggling if:
+    // - They've drawn 2+ times in a row
+    // - They draw more than they play (high draw rate)
+    const drawRate = totalMoves > 0 ? drawCount / totalMoves : 0;
+    
+    return {
+      struggling: consecutiveDraws >= 2 || drawRate > 0.4,
+      consecutiveDraws,
+      drawRate,
+      recentlyDrew: humanPlayHistory.lastDrawTurn >= (totalMoves - 2),
+    };
+  };
+  
+  // Get the best color to change to when playing Ace (to hurt human player)
+  const getBestAceColorAgainstHuman = () => {
+    const weakColors = getHumanWeakColors();
+    
+    // If we know colors human is weak in, pick one of those
+    if (weakColors.length > 0) {
+      return weakColors[0];
+    }
+    
+    // Otherwise fall back to most played color overall
+    return getMostPlayedColor();
+  };
+  
   // Smart card selection for computer
   const selectSmartCard = (hand, validCards, computerIdx, currentActiveColor) => {
     if (validCards.length === 0) return null;
@@ -1084,13 +1191,23 @@ export default function Home() {
       }
     }
     
-    // STRATEGY 3: Target human player specifically when they're low
-    if (nextOpponent.isHuman && nextOpponent.cardCount <= 4) {
+    // STRATEGY 3: Target human player specifically when they're low OR struggling
+    const humanStatus = isHumanStruggling();
+    if (nextOpponent.isHuman && (nextOpponent.cardCount <= 4 || humanStatus.struggling)) {
+      // Human is struggling - press harder!
       if (jacks.length > 0) {
-        return { card: jacks[0], paired: null };
+        return { card: jacks[0], paired: null }; // Skip them
       }
       if (twos.length > 0) {
-        return { card: twos[0], paired: null };
+        return { card: twos[0], paired: null }; // Force draw
+      }
+      // If we have cards in colors human is weak in, play those
+      const humanWeakColors = getHumanWeakColors();
+      if (humanWeakColors.length > 0) {
+        const cardsInWeakColor = normalCards.filter(c => humanWeakColors.includes(c.color));
+        if (cardsInWeakColor.length > 0) {
+          return { card: cardsInWeakColor[0], paired: null };
+        }
       }
     }
     
@@ -1125,15 +1242,25 @@ export default function Home() {
       }
     }
     
-    // STRATEGY 6: Prefer playing cards of colors we have many of (keep options open)
+    // STRATEGY 6: Prefer playing cards of colors we have many of AND human is weak in
     if (normalCards.length > 0) {
       const colorGroups = {};
       hand.forEach(c => {
         colorGroups[c.color] = (colorGroups[c.color] || 0) + 1;
       });
       
-      // Sort normal cards by how many cards of that color we have (play from largest group)
+      // Get human's weak colors
+      const humanWeakColors = getHumanWeakColors();
+      
+      // Sort normal cards by: 1) human weak color, 2) how many cards of that color we have
       const sortedNormals = [...normalCards].sort((a, b) => {
+        const aIsWeak = humanWeakColors.includes(a.color) ? 1 : 0;
+        const bIsWeak = humanWeakColors.includes(b.color) ? 1 : 0;
+        
+        // Prioritize human weak colors
+        if (aIsWeak !== bIsWeak) return bIsWeak - aIsWeak;
+        
+        // Then by how many cards of that color we have (play from largest group)
         return (colorGroups[b.color] || 0) - (colorGroups[a.color] || 0);
       });
       
@@ -1491,9 +1618,9 @@ export default function Home() {
                 </div>
             )}
 
-            {/* Color Picker Overlay */}
+            {/* Color Picker Overlay - no blur so player can see their cards to choose best suit */}
             {showColorPicker && (
-                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+                <div className="absolute inset-0 z-40 flex items-center justify-center px-4 bg-black/30">
                     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-2xl border-4 border-yellow-500">
                         <h3 className="text-lg sm:text-xl font-bold text-black mb-3 sm:mb-4 text-center">Pick a Suit</h3>
                         <div className="flex gap-2 sm:gap-4">
@@ -1719,21 +1846,29 @@ export default function Home() {
 
             {/* Current Card Area */}
             <div className="relative flex items-center gap-2">
-                {/* Q Pair Card - shown when Q was paired - hidden on small screens */}
+                {/* Q Pair Card - shown when Q was paired */}
                 {qPairCard && (
-                    <div className="hidden sm:block absolute -left-20 md:-left-28 top-1/2 transform -translate-y-1/2 z-20">
-                        <div className="relative">
-                            <div className="transform scale-75 md:scale-90 opacity-80">
-                                <Card
-                                    card={qPairCard}
-                                    className="shadow-xl border-2 border-purple-400"
-                                />
-                            </div>
-                            <div className="absolute -bottom-5 md:-bottom-6 left-1/2 transform -translate-x-1/2 bg-purple-500 text-white px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-bold whitespace-nowrap">
-                                OR Q
+                    <>
+                        {/* Desktop: Show card to the left */}
+                        <div className="hidden sm:block absolute -left-20 md:-left-28 top-1/2 transform -translate-y-1/2 z-20">
+                            <div className="relative">
+                                <div className="transform scale-75 md:scale-90 opacity-80">
+                                    <Card
+                                        card={qPairCard}
+                                        className="shadow-xl border-2 border-purple-400"
+                                    />
+                                </div>
+                                <div className="absolute -bottom-5 md:-bottom-6 left-1/2 transform -translate-x-1/2 bg-purple-500 text-white px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-bold whitespace-nowrap">
+                                    OR Q
+                                </div>
                             </div>
                         </div>
-                    </div>
+                        {/* Mobile: Show OR Q badge above play area */}
+                        <div className="sm:hidden absolute -top-8 left-1/2 transform -translate-x-1/2 z-30 bg-purple-500 text-white px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shadow-lg flex items-center gap-1">
+                            <span className={`${isRedColor(qPairCard.color) ? "text-red-200" : "text-gray-200"}`}>{qPairCard.color}</span>
+                            OR Q
+                        </div>
+                    </>
                 )}
                 
                 <div
@@ -1885,7 +2020,7 @@ export default function Home() {
           {/* Player Area */}
           <div className={`flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4 overflow-visible transition-all ${
             rankings.includes(0) ? 'opacity-60' : ''
-          } ${turn === 0 && !rankings.includes(0) ? 'ring-2 ring-yellow-400 rounded-xl p-2 mx-2 bg-yellow-400/10' : ''}`}>
+          }`}>
             <div className="flex items-center gap-2 mb-1 sm:mb-2">
               <div className={`text-xs sm:text-base font-bold text-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm ${
                 rankings.includes(0) ? 'bg-green-500/30' : turn === 0 ? 'bg-yellow-500/50' : 'bg-black/30'
@@ -1897,7 +2032,19 @@ export default function Home() {
                   {playerMoves[0] || 0} moves
               </div>
             </div>
-            <div className="flex -space-x-6 sm:-space-x-8 overflow-visible p-2 sm:p-4 max-w-full min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-12">
+            <div 
+              className={`flex overflow-visible p-2 sm:p-4 min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-6 justify-center transition-all ${
+                turn === 0 && !rankings.includes(0) ? 'ring-2 ring-yellow-400 rounded-xl bg-yellow-400/10' : ''
+              }`}
+              style={{
+                // Dynamic spacing based on card count - tighter when more cards
+                gap: playerDeck.length > 10 
+                  ? `${Math.max(-45, -20 - playerDeck.length * 2)}px`
+                  : playerDeck.length > 7 
+                    ? '-28px' 
+                    : '-24px'
+              }}
+            >
               <AnimatePresence>
                 {sortCardsByColor(playerDeck).map((card, index) => {
                   const isSelected = selectedCards.find(c => c.id === card.id);
