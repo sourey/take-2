@@ -149,6 +149,7 @@ export default function Home() {
   // Save game state to localStorage whenever it changes
   useEffect(() => {
     if (!isLoaded) return; // Don't save until we've loaded
+    if (showResumePrompt) return; // Don't overwrite saved game while showing resume prompt
 
     const state = {
       deck,
@@ -184,6 +185,7 @@ export default function Home() {
     }
   }, [
     isLoaded,
+    showResumePrompt,
     deck,
     drawPile,
     discardPile,
