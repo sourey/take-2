@@ -2045,14 +2045,6 @@ export default function Home() {
               className={`flex overflow-visible p-2 sm:p-4 min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-6 justify-center transition-all ${
                 turn === 0 && !rankings.includes(0) ? 'ring-2 ring-yellow-400 rounded-xl bg-yellow-400/10' : ''
               }`}
-              style={{
-                // Dynamic spacing based on card count - tighter when more cards
-                gap: playerDeck.length > 10 
-                  ? `${Math.max(-45, -20 - playerDeck.length * 2)}px`
-                  : playerDeck.length > 7 
-                    ? '-28px' 
-                    : '-24px'
-              }}
             >
               <AnimatePresence>
                 {sortCardsByColor(playerDeck).map((card, index) => {
@@ -2071,6 +2063,11 @@ export default function Home() {
                           highlightPair = true;
                       }
                   }
+                  
+                  // Calculate overlap margin - tighter stacking for more cards
+                  // Card width is ~60px on mobile, we want cards to overlap significantly
+                  const cardCount = playerDeck.length;
+                  const overlap = cardCount > 10 ? -48 : cardCount > 7 ? -44 : -38;
                   
                   return (
                     <motion.div
@@ -2094,7 +2091,11 @@ export default function Home() {
                               ? "-translate-y-3 sm:-translate-y-5 z-10" 
                               : ""
                       }`}
-                      style={{ touchAction: "none", position: "relative" }}
+                      style={{ 
+                        touchAction: "none", 
+                        position: "relative",
+                        marginLeft: index === 0 ? 0 : overlap,
+                      }}
                     >
                       <Card
                         card={card}
