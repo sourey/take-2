@@ -1349,6 +1349,26 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn, gameStart, gameOver, computerDecks, currentPlayCard, activeColor, penaltyStack, skipActive, qPairCard, numPlayers, rankings, discardPile, playerDeck]);
 
+  // Auto-skip player if they don't have a Jack to counter skip
+  useEffect(() => {
+    if (turn === 0 && skipActive && gameStart && !gameOver && isPlayerActive(0)) {
+      // Check if player has any Jacks
+      const hasJack = playerDeck.some(card => card.num === "J");
+      
+      if (!hasJack) {
+        // Auto-skip after a short delay to show the skip indication
+        const timer = setTimeout(() => {
+          setMessage(`${playerName || "Player"} was skipped - no Jack to counter!`);
+          setSkipActive(false);
+          setTurn(getNextActiveTurn(0));
+        }, 2000); // 2 second delay to show skip indication
+        
+        return () => clearTimeout(timer);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn, skipActive, gameStart, gameOver, playerDeck, playerName]);
+
   // Check win condition effect - safety net
   // Note: Win condition is primarily checked in playCards function
   // This effect catches any edge cases
@@ -1675,8 +1695,10 @@ export default function Home() {
             
             {/* Mobile Message */}
             <div className="flex sm:hidden justify-center">
-              <div className="text-xs font-bold text-white bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 shadow-lg text-center max-w-[250px] truncate">
-                  {message || (turn === 0 ? "Your Turn" : `${getComputerName(turn - 1)}'s Turn`)}
+              <div className={`text-xs font-bold text-white backdrop-blur-md px-4 py-2 rounded-full border shadow-lg text-center max-w-[250px] truncate ${
+                turn === 0 && skipActive ? 'bg-red-600/80 border-red-400' : 'bg-black/40 border-white/20'
+              }`}>
+                  {message || (turn === 0 && skipActive ? "⏭️ You are SKIPPED!" : turn === 0 ? "Your Turn" : `${getComputerName(turn - 1)}'s Turn`)}
               </div>
             </div>
             
@@ -1692,8 +1714,10 @@ export default function Home() {
                   </div>
               </div>
 
-              <div className="text-lg font-bold text-white bg-black/40 backdrop-blur-md px-8 py-3 rounded-full border border-white/20 shadow-lg text-center min-w-[300px] truncate">
-                  {message || (turn === 0 ? "Your Turn" : `${getComputerName(turn - 1)}'s Turn`)}
+              <div className={`text-lg font-bold text-white backdrop-blur-md px-8 py-3 rounded-full border shadow-lg text-center min-w-[300px] truncate ${
+                turn === 0 && skipActive ? 'bg-red-600/80 border-red-400' : 'bg-black/40 border-white/20'
+              }`}>
+                  {message || (turn === 0 && skipActive ? "⏭️ You are SKIPPED!" : turn === 0 ? "Your Turn" : `${getComputerName(turn - 1)}'s Turn`)}
               </div>
               
               <div className="flex items-center gap-3">
@@ -2030,6 +2054,20 @@ export default function Home() {
           <div className={`flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4 overflow-visible transition-all ${
             rankings.includes(0) ? 'opacity-60' : ''
           }`}>
+            {/* Skip Indicator - Show when player is skipped and doesn't have Jack */}
+            {turn === 0 && skipActive && !playerDeck.some(card => card.num === "J") && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mb-2 bg-red-600/90 backdrop-blur-md px-4 py-2 rounded-full border-2 border-red-400 shadow-lg animate-pulse"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-bold text-sm sm:text-base">⏭️ SKIPPED</span>
+                  <span className="text-white/90 text-xs sm:text-sm">No Jack to counter</span>
+                </div>
+              </motion.div>
+            )}
             <div className="flex items-center gap-2 mb-1 sm:mb-2">
               <div className={`text-xs sm:text-base font-bold text-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-full backdrop-blur-sm ${
                 rankings.includes(0) ? 'bg-green-500/30' : turn === 0 ? 'bg-yellow-500/50' : 'bg-black/30'
