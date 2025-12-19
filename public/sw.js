@@ -1,10 +1,9 @@
-const CACHE_NAME = 'take2-v1';
+const CACHE_NAME = 'take2-v1.2';
 
 // Assets to cache for offline use
 const ASSETS_TO_CACHE = [
   '/',
-  '/card-back.png',
-  // Card images will be cached dynamically
+  '/card-back.png'
 ];
 
 // Install event - cache core assets
@@ -36,52 +35,28 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') return;
-
-  // Skip cross-origin requests except for card images
-  if (url.origin !== location.origin && !url.href.includes('deckofcardsapi.com')) {
-    return;
-  }
-
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(request).then((networkResponse) => {
-        // Don't cache non-successful responses
-        if (!networkResponse || networkResponse.status !== 200) {
-          return networkResponse;
+  // Only cache same-origin requests and essential assets
+  if (url.origin === location.origin) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
         }
 
-        // Clone the response since it can only be consumed once
-        const responseToCache = networkResponse.clone();
-
-        // Cache the fetched resource
-        caches.open(CACHE_NAME).then((cache) => {
-          // Cache card images and static assets
-          if (
-            url.href.includes('deckofcardsapi.com') ||
-            url.pathname.endsWith('.png') ||
-            url.pathname.endsWith('.jpg') ||
-            url.pathname.endsWith('.svg') ||
-            url.pathname.endsWith('.js') ||
-            url.pathname.endsWith('.css') ||
-            url.pathname === '/'
-          ) {
-            cache.put(request, responseToCache);
+        return fetch(request).then((networkResponse) => {
+          // Cache successful responses for same-origin assets
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+            });
           }
+          return networkResponse;
         });
-
-        return networkResponse;
-      }).catch(() => {
-        // Return cached version if network fails
-        return caches.match(request);
-      });
-    })
-  );
+      })
+    );
+  }
+  // Let cross-origin requests (like GitHub images) go through normally
 });
 
 

@@ -1723,7 +1723,7 @@ export default function Home() {
             </p>
           </div>
           {/* High Score Display */}
-          {highScore && (
+          {/* {highScore && (
             <div className="mb-4 bg-gradient-to-r from-yellow-600/30 to-yellow-400/30 rounded-xl px-6 py-3 border border-yellow-500/50 text-center">
               <div className="text-yellow-300 font-bold text-lg">🏆 Best Record</div>
               <div className="text-white text-2xl font-bold">{highScore.moves} moves</div>
@@ -1738,7 +1738,7 @@ export default function Home() {
                 Clear Record
               </button>
             </div>
-          )}
+          )} */}
 
           {/* Player Badge and Stats */}
           {playerName && playerStats && playerStats.games > 0 && (
