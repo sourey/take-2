@@ -1688,11 +1688,11 @@ export default function Home() {
                   className="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg bg-white/90 text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
                 >
                   <option value="" disabled>Select player name...</option>
-                  {savedPlayerNames.length === 0 && (
+                  {/* {savedPlayerNames.length === 0 && (
                     <option value="" disabled className="text-gray-400">
                       No saved names yet - play a game first!
                     </option>
-                  )}
+                  )} */}
                   {savedPlayerNames.map((name, index) => (
                     <option key={index} value={name}>
                       {name}
