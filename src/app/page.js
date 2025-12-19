@@ -78,7 +78,7 @@ export default function Home() {
   const [computerDecks, setComputerDecks] = useState([]); // Array of computer hands
   const [playerName, setPlayerName] = useState("");
   const [gameCardNum, setGameCardNum] = useState(5);
-  const [numPlayers, setNumPlayers] = useState(4); // Total players (1 human + N-1 computers)
+  const [numPlayers, setNumPlayers] = useState(2); // Total players (1 human + N-1 computers)
   const [isLoaded, setIsLoaded] = useState(false); // Track if we've loaded from storage
   const [assetsLoaded, setAssetsLoaded] = useState(false); // Track if card assets are cached
   const [showResumePrompt, setShowResumePrompt] = useState(false); // Show resume/new game prompt
@@ -109,6 +109,7 @@ export default function Home() {
   const [playerStats, setPlayerStats] = useState(null);
   const [globalStats, setGlobalStats] = useState(null);
   const [savedPlayerNames, setSavedPlayerNames] = useState([]);
+  const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
 
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
@@ -1618,9 +1619,9 @@ export default function Home() {
       {/* Content Overlay */}
       <div className="relative z-10 w-full h-full">
       {!gameStart ? (
-        <div className="flex flex-col justify-center items-center h-screen px-4">
+        <div className="flex flex-col justify-center items-center min-h-screen px-4 gap-2 sm:gap-4 py-4 overflow-y-auto">
           {/* Creative Game Title */}
-          <div className="relative mb-6 md:mb-8">
+          <div className="relative mb-4 sm:mb-6 md:mb-8">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white drop-shadow-2xl relative z-10">
               <span className="relative inline-block">
                 <span className="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 bg-clip-text text-transparent animate-pulse">
@@ -1661,7 +1662,7 @@ export default function Home() {
             <div className="absolute -top-2 right-1/4 text-yellow-300 animate-ping" style={{animationDelay: '1s'}}>⭐</div>
             <div className="absolute -bottom-4 left-1/3 text-yellow-300 animate-ping" style={{animationDelay: '2s'}}>✨</div>
           </div>
-          <div className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8 text-black w-full max-w-xs">
+          <div className="flex flex-col gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6 md:mb-8 text-black w-full max-w-xs mt-8 sm:mt-0">
             {/* Player Name Input with Dropdown */}
             <div className="relative">
               <input
@@ -1669,58 +1670,133 @@ export default function Home() {
                 placeholder="Enter your name"
                 value={playerName}
                 onChange={handlePlayerNameChange}
-                className="w-full px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
+                className="w-full px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base mb-4 sm:mb-0"
               />
               {savedPlayerNames.length > 0 && (
               <div className="text-white/70 text-xs text-center mt-4 mb-4">
                 Or select from your previous player
               </div>
             )}
-              {savedPlayerNames.length > 0 && (
-                <div className="mt-2">
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setPlayerName(e.target.value);
-                      }
-                    }}
-                    className="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg bg-white/90 text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
-                  >
-                    <option value="" disabled>Select player</option>
-                    {savedPlayerNames.map((name, index) => (
-                      <option key={index} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div className="mt-2">
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setPlayerName(e.target.value);
+                    }
+                  }}
+                  className="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg bg-white/90 text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
+                >
+                  <option value="" disabled>Select player name...</option>
+                  {savedPlayerNames.length === 0 && (
+                    <option value="" disabled className="text-gray-400">
+                      No saved names yet - play a game first!
+                    </option>
+                  )}
+                  {savedPlayerNames.map((name, index) => (
+                    <option key={index} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             
-            <input
-              type="number"
-              placeholder="Number of cards (e.g. 7)"
-              value={gameCardNum}
-              onChange={handleGameCardNumChange}
-              min="1"
-              max="13"
-              className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
-            />
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={numPlayers}
-                onChange={handleNumPlayersChange}
-                min="2"
-                max="4"
-                placeholder="Number of players"
-                className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base flex-1"
-              />
+            {/* Number of Cards Selector */}
+            <div className="w-full">
+              {/* Mobile: Ultra-compact horizontal layout */}
+              <div className="block sm:hidden">
+                <div className="flex gap-4 mb-2 overflow-x-auto pb-1 mt-4 sm:mt-0">
+                  {[
+                    { cards: 5, short: "Fast", emoji: "⚡" },
+                    { cards: 7, short: "Normal", emoji: "🎯" },
+                    { cards: 10, short: "Long", emoji: "🏃" },
+                    { cards: 13, short: "Epic", emoji: "🏔️" }
+                  ].map(({ cards, short, emoji }) => (
+                    <button
+                      key={cards}
+                      onClick={() => setGameCardNum(cards)}
+                      className={`flex-shrink-0 w-[65px] h-[50px] p-1 rounded-md font-bold transition-all transform hover:scale-105 shadow-md border-2 flex flex-col items-center justify-center ${
+                        gameCardNum === cards
+                          ? 'bg-yellow-500 text-black border-yellow-400 shadow-yellow-500/50'
+                          : 'bg-white/90 text-gray-700 border-gray-300 hover:border-yellow-400'
+                      }`}
+                    >
+                      <div className="text-sm leading-none">{emoji}</div>
+                      <div className="text-[10px] font-bold leading-tight mt-0.5">{short}</div>
+                      <div className="text-[9px] font-normal leading-none">{cards}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Desktop: Full grid layout */}
+              <div className="hidden sm:grid sm:grid-cols-2 sm:gap-2 sm:mb-3">
+                {[
+                  { cards: 5, label: "Quick", desc: "⚡ Fast", time: "~5-10 min" },
+                  { cards: 7, label: "Standard", desc: "🎯 Normal", time: "~10-15 min" },
+                  { cards: 10, label: "Extended", desc: "🏃 Long", time: "~15-25 min" },
+                  { cards: 13, label: "Marathon", desc: "🏔️ Epic", time: "~25-40 min" }
+                ].map(({ cards, label, desc, time }) => (
+                  <button
+                    key={cards}
+                    onClick={() => setGameCardNum(cards)}
+                    className={`p-3 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg border-2 text-center ${
+                      gameCardNum === cards
+                        ? 'bg-yellow-500 text-black border-yellow-400 shadow-yellow-500/50'
+                        : 'bg-white/90 text-gray-700 border-gray-300 hover:border-yellow-400'
+                    }`}
+                  >
+                    <div className="text-sm font-bold">{label}</div>
+                    <div className="text-xs opacity-75">{desc}</div>
+                    <div className="text-xs mt-1 font-normal">{cards} cards</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Description - ultra compact on mobile */}
+              <div className="text-center">
+                <div className="inline-flex items-center gap-1 bg-slate-600/30 rounded-md px-2 py-1 sm:px-4 sm:py-2">
+                  <span className="text-white text-[10px] sm:text-sm">
+                    📊 {gameCardNum} cards
+                    <span className="hidden sm:inline">
+                      {gameCardNum === 5 && " • Quick games"}
+                      {gameCardNum === 7 && " • Balanced"}
+                      {gameCardNum === 10 && " • Strategic"}
+                      {gameCardNum === 13 && " • Ultimate"}
+                    </span>
+                  </span>
+                </div>
+              </div>
             </div>
-            <p className="text-white/70 text-xs text-center">
-              {numPlayers - 1} computer opponent{numPlayers > 2 ? 's' : ''}
-            </p>
+            {/* Number of Players Selector */}
+            <div className="w-full">
+              <div className="flex justify-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+                {[2, 3, 4].map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setNumPlayers(num)}
+                    className={`px-3 py-2 sm:px-4 sm:py-3 rounded-md sm:rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg border-2 text-sm sm:text-base ${
+                      numPlayers === num
+                        ? 'bg-yellow-500 text-black border-yellow-400 shadow-yellow-500/50'
+                        : 'bg-white/90 text-gray-700 border-gray-300 hover:border-yellow-400'
+                    }`}
+                  >
+                    {num}
+                    <span className="hidden sm:inline"> Players</span>
+                  </button>
+                ))}
+              </div>
+              <div className="text-center">
+                <div className="inline-flex items-center gap-1 bg-slate-600/30 rounded-md px-2 py-1 sm:px-4 sm:py-2">
+                  <span className="text-white text-[10px] sm:text-sm">
+                    {numPlayers === 2 && '🤖 1 AI'}
+                    {numPlayers === 3 && '🤖🤖 2 AI'}
+                    {numPlayers === 4 && '🤖🤖🤖 3 AI'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
           {/* High Score Display */}
           {/* {highScore && (
@@ -1740,23 +1816,30 @@ export default function Home() {
             </div>
           )} */}
 
-          {/* Player Badge and Stats */}
+          {/* Player Badge and Stats - Mobile Optimized */}
           {playerName && playerStats && playerStats.games > 0 && (
-            <div className="mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50">
-              <div className="text-center mb-3">
-                <div className="flex items-center justify-center gap-3">
-                  <span className="text-3xl">{playerStats.badge.icon}</span>
-                  <div>
-                    <div className="text-white font-bold text-xl text-left" style={{ color: playerStats.badge.color }}>
-                      {playerStats.badge.name}
+            <div className="mb-3 sm:mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-3 py-3 sm:px-6 sm:py-4 border border-slate-600/50">
+              {/* Mobile: Compact horizontal layout */}
+              <div className="block sm:hidden">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{playerStats.badge.icon}</span>
+                    <div>
+                      <div className="text-white font-bold text-sm" style={{ color: playerStats.badge.color }}>
+                        {playerStats.badge.name}
+                      </div>
+                      <div className="text-white/60 text-xs">
+                        {playerStats.games}g • {playerStats.wins}w • {playerStats.winRate}%
+                      </div>
                     </div>
-                    <div className="text-white/70 text-sm">
-                      {playerStats.games} games • {playerStats.wins} wins • {playerStats.winRate}% win rate
-                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white/60 text-xs">Best</div>
+                    <div className="text-white font-bold text-xs">{formatDuration(playerStats.bestTime)}</div>
                   </div>
                 </div>
 
-                {/* Next Badge Progress */}
+                {/* Progress bar - simplified for mobile */}
                 {(() => {
                   const currentBadgeIndex = BADGE_LEVELS.findIndex(b => b.name === playerStats.badge.name);
                   const nextBadge = BADGE_LEVELS[currentBadgeIndex + 1];
@@ -1769,12 +1852,12 @@ export default function Home() {
                     return (
                       <div className="mt-2">
                         <div className="flex items-center justify-between text-xs text-white/70 mb-1">
-                          <span>Next: {nextBadge.icon} {nextBadge.name}</span>
+                          <span>Next: {nextBadge.icon}</span>
                           <span>{Math.round(overallProgress * 100)}%</span>
                         </div>
-                        <div className="w-full bg-slate-600/50 rounded-full h-2">
+                        <div className="w-full bg-slate-600/50 rounded-full h-1.5">
                           <div
-                            className="h-2 rounded-full transition-all duration-300"
+                            className="h-1.5 rounded-full transition-all duration-300"
                             style={{
                               width: `${overallProgress * 100}%`,
                               backgroundColor: nextBadge.color
@@ -1787,59 +1870,79 @@ export default function Home() {
 
                   return (
                     <div className="mt-2 text-center">
-                      <span className="text-yellow-400 text-sm font-bold">🎉 MAX LEVEL ACHIEVED!</span>
+                      <span className="text-yellow-400 text-xs font-bold">🎉 MAX!</span>
                     </div>
                   );
                 })()}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="bg-slate-600/30 rounded-lg p-2">
-                  <div className="text-white/70 text-xs">Best Time</div>
-                  <div className="text-white font-bold text-sm">{formatDuration(playerStats.bestTime)}</div>
+              {/* Desktop: Full layout */}
+              <div className="hidden sm:block">
+                <div className="text-center mb-3">
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-3xl">{playerStats.badge.icon}</span>
+                    <div>
+                      <div className="text-white font-bold text-xl text-left" style={{ color: playerStats.badge.color }}>
+                        {playerStats.badge.name}
+                      </div>
+                      <div className="text-white/70 text-sm">
+                        {playerStats.games} games • {playerStats.wins} wins • {playerStats.winRate}% win rate
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Next Badge Progress */}
+                  {(() => {
+                    const currentBadgeIndex = BADGE_LEVELS.findIndex(b => b.name === playerStats.badge.name);
+                    const nextBadge = BADGE_LEVELS[currentBadgeIndex + 1];
+
+                    if (nextBadge) {
+                      const gamesProgress = Math.min(playerStats.games / nextBadge.minGames, 1);
+                      const winsProgress = Math.min(playerStats.wins / nextBadge.minWins, 1);
+                      const overallProgress = Math.min(gamesProgress, winsProgress);
+
+                      return (
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between text-xs text-white/70 mb-1">
+                            <span>Next: {nextBadge.icon} {nextBadge.name}</span>
+                            <span>{Math.round(overallProgress * 100)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-600/50 rounded-full h-2">
+                            <div
+                              className="h-2 rounded-full transition-all duration-300"
+                              style={{
+                                width: `${overallProgress * 100}%`,
+                                backgroundColor: nextBadge.color
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="mt-2 text-center">
+                        <span className="text-yellow-400 text-sm font-bold">🎉 MAX LEVEL ACHIEVED!</span>
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div className="bg-slate-600/30 rounded-lg p-2">
-                  <div className="text-white/70 text-xs">Win Rate</div>
-                  <div className="text-white font-bold text-sm">{playerStats.winRate}%</div>
+
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div className="bg-slate-600/30 rounded-lg p-2">
+                    <div className="text-white/70 text-xs">Best Time</div>
+                    <div className="text-white font-bold text-sm">{formatDuration(playerStats.bestTime)}</div>
+                  </div>
+                  <div className="bg-slate-600/30 rounded-lg p-2">
+                    <div className="text-white/70 text-xs">Win Rate</div>
+                    <div className="text-white font-bold text-sm">{playerStats.winRate}%</div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Global Statistics */}
-          {globalStats && (
-            <div className="mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50">
-              <div className="text-center mb-3">
-                <div className="text-white font-bold text-lg">Global Stats</div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="bg-slate-600/30 rounded-lg p-2 text-center">
-                  <div className="text-white/70 text-xs">Total Games</div>
-                  <div className="text-white font-bold text-lg">{globalStats.totalGames}</div>
-                </div>
-                <div className="bg-slate-600/30 rounded-lg p-2 text-center">
-                  <div className="text-white/70 text-xs">Longest Game</div>
-                  <div className="text-white font-bold text-sm">{formatDuration(globalStats.longestGame)}</div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {globalStats.mostWins.player && (
-                  <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-2">
-                    <span className="text-white/70 text-sm">Most Wins:</span>
-                    <span className="text-white font-bold">{globalStats.mostWins.player} ({globalStats.mostWins.count})</span>
-                  </div>
-                )}
-                {globalStats.mostLosses.player && (
-                  <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-2">
-                    <span className="text-white/70 text-sm">Most Losses:</span>
-                    <span className="text-white font-bold">{globalStats.mostLosses.player} ({globalStats.mostLosses.count})</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+         
           
           <button
             className={`font-bold py-3 px-8 md:py-4 md:px-12 rounded-full transition-all transform shadow-xl border-4 text-lg md:text-xl ${
@@ -1857,6 +1960,18 @@ export default function Home() {
               </span>
             )}
           </button>
+           {/* Global Stats Button */}
+           <div className="mb-2 sm:mb-4 mt-8 sm:mt-8">
+            <button
+              onClick={() => setShowGlobalStatsModal(true)}
+              className="w-full bg-gradient-to-r from-slate-700/50 to-slate-800/50 hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl px-6 py-3 border border-slate-600/50 transition-all transform hover:scale-105 shadow-lg"
+            >
+              <div className="text-center">
+                <div className="text-white font-bold text-lg mb-1">🏆 Global Stats</div>
+                <div className="text-white/70 text-sm">View leaderboard & records</div>
+              </div>
+            </button>
+          </div>
           {!assetsLoaded && (
             <p className="text-white/60 text-xs mt-2 animate-pulse">Caching card assets for smooth gameplay...</p>
           )}
@@ -2521,6 +2636,64 @@ export default function Home() {
               </AnimatePresence>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Global Stats Modal */}
+      {showGlobalStatsModal && globalStats && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-600 relative"
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setShowGlobalStatsModal(false)}
+              className="absolute top-4 right-4 text-white/60 hover:text-white text-xl font-bold"
+            >
+              ✕
+            </button>
+
+            <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-6 drop-shadow-lg">
+              🏆 Global Stats
+            </h2>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
+                  <div className="text-white/70 text-xs mb-1">Total Games</div>
+                  <div className="text-white font-bold text-2xl">{globalStats.totalGames}</div>
+                </div>
+                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
+                  <div className="text-white/70 text-xs mb-1">Longest Game</div>
+                  <div className="text-white font-bold text-lg">{formatDuration(globalStats.longestGame)}</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {globalStats.mostWins.player && (
+                  <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-3 border border-green-500/30">
+                    <span className="text-white/70 text-sm">👑 Most Wins:</span>
+                    <span className="text-white font-bold">{globalStats.mostWins.player} ({globalStats.mostWins.count})</span>
+                  </div>
+                )}
+                {globalStats.mostLosses.player && (
+                  <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-3 border border-red-500/30">
+                    <span className="text-white/70 text-sm">💔 Most Losses:</span>
+                    <span className="text-white font-bold">{globalStats.mostLosses.player} ({globalStats.mostLosses.count})</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-center pt-2">
+                <div className="text-white/60 text-xs">
+                  Win Rate: <span className="text-white font-bold">{globalStats.winRate}%</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
 
