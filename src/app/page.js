@@ -63,10 +63,10 @@ const sortCardsByColor = (cards) => {
     return numOrder[a.num] - numOrder[b.num];
   });
 };
-
+ 
 const STORAGE_KEY = "take2-game-state";
 const HIGH_SCORE_KEY = "take2-high-score";
-const GAME_VERSION = "v1.0";
+const GAME_VERSION = "v1.1";
 
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
@@ -1619,7 +1619,48 @@ export default function Home() {
       <div className="relative z-10 w-full h-full">
       {!gameStart ? (
         <div className="flex flex-col justify-center items-center h-screen px-4">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 md:mb-8 text-white drop-shadow-lg">TAKE 2</h1>
+          {/* Creative Game Title */}
+          <div className="relative mb-6 md:mb-8">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white drop-shadow-2xl relative z-10">
+              <span className="relative inline-block">
+                <span className="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 bg-clip-text text-transparent animate-pulse">
+                  TAKE
+                </span>
+                <span className="absolute -top-2 -left-2 text-red-500 text-lg animate-bounce">♠</span>
+                <span className="absolute -top-2 -right-2 text-black text-lg animate-bounce" style={{animationDelay: '0.2s'}}>♣</span>
+              </span>
+              <span className="relative inline-block ml-2">
+                <span className="bg-gradient-to-r from-red-400 via-red-300 to-red-500 bg-clip-text text-transparent animate-pulse" style={{animationDelay: '0.5s'}}>
+                  2
+                </span>
+                <span className="absolute -bottom-2 -left-2 text-red-500 text-lg animate-bounce" style={{animationDelay: '0.4s'}}>♥</span>
+                <span className="absolute -bottom-2 -right-2 text-black text-lg animate-bounce" style={{animationDelay: '0.6s'}}>♦</span>
+              </span>
+            </h1>
+
+            {/* Animated background cards */}
+            <div className="absolute inset-0 -z-10 opacity-20">
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="relative w-32 h-44 sm:w-40 sm:h-56 md:w-48 md:h-64">
+                  {/* Back card */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg shadow-2xl border-2 border-white transform rotate-6 animate-pulse"></div>
+                  {/* Front card */}
+                  <div className="absolute inset-0 bg-white rounded-lg shadow-2xl border-2 border-gray-300 transform -rotate-3 animate-pulse" style={{animationDelay: '1s'}}>
+                    <div className="flex items-center justify-center h-full">
+                      <span className="text-4xl sm:text-5xl md:text-6xl font-bold text-red-500">♠</span>
+                    </div>
+                  </div>
+                  {/* Side card */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-800 rounded-lg shadow-2xl border-2 border-white transform rotate-12 animate-pulse" style={{animationDelay: '2s'}}></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sparkle effects */}
+            <div className="absolute -top-4 left-1/4 text-yellow-300 animate-ping">✨</div>
+            <div className="absolute -top-2 right-1/4 text-yellow-300 animate-ping" style={{animationDelay: '1s'}}>⭐</div>
+            <div className="absolute -bottom-4 left-1/3 text-yellow-300 animate-ping" style={{animationDelay: '2s'}}>✨</div>
+          </div>
           <div className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8 text-black w-full max-w-xs">
             {/* Player Name Input with Dropdown */}
             <div className="relative">
@@ -1700,14 +1741,13 @@ export default function Home() {
           )}
 
           {/* Player Badge and Stats */}
-          {playerName && playerStats && (
+          {playerName && playerStats && playerStats.games > 0 && (
             <div className="mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50">
               <div className="text-center mb-3">
-                <div className="text-white font-bold text-lg mb-1">Player Badge</div>
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-3">
                   <span className="text-3xl">{playerStats.badge.icon}</span>
                   <div>
-                    <div className="text-white font-bold text-xl" style={{ color: playerStats.badge.color }}>
+                    <div className="text-white font-bold text-xl text-left" style={{ color: playerStats.badge.color }}>
                       {playerStats.badge.name}
                     </div>
                     <div className="text-white/70 text-sm">
