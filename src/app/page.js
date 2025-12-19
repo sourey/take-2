@@ -7,6 +7,29 @@ import { Card, preloadCards } from "./components/Card";
 import { GameRules } from "./components/GameRules"; // Import GameRules component
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
+import {
+  initAudio,
+  resumeAudio,
+  playCardDealSound,
+  playShuffleSound,
+  playCardPlaceSound,
+  playWinningSound,
+  playLastCallSound,
+  playPenaltySound,
+  playSkipSound,
+  playAceSound,
+  playQueenPairSound,
+  playGameStartSound,
+  setAudioEnabled,
+  getAudioEnabled
+} from "@/utils/audio";
+import {
+  recordGameCompletion,
+  getGlobalStats,
+  getPlayerStats,
+  formatDuration,
+  BADGE_LEVELS
+} from "@/utils/stats";
 
 const colors = ["♠", "♥️", "♦", "♣"];
 const cardNums = [
@@ -73,7 +96,16 @@ export default function Home() {
   const [skipActive, setSkipActive] = useState(false); // Track if a skip is pending
   const [deckRecycled, setDeckRecycled] = useState(false); // Show deck recycled indicator
   const [qPairCard, setQPairCard] = useState(null); // Track Q pair secondary card for dual matching
-  
+
+  // Audio state
+  const [audioEnabled, setAudioEnabledState] = useState(true);
+
+  // Game timing and stats
+  const [gameStartTime, setGameStartTime] = useState(null);
+  const [gameEndTime, setGameEndTime] = useState(null);
+  const [playerStats, setPlayerStats] = useState(null);
+  const [globalStats, setGlobalStats] = useState(null);
+
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
   
@@ -100,7 +132,10 @@ export default function Home() {
       console.log("Card assets preloaded and cached");
       setAssetsLoaded(true);
     });
-    
+
+    // Initialize audio system
+    initAudio();
+
     // Register service worker for offline support
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
@@ -113,6 +148,14 @@ export default function Home() {
     }
   }, []);
 
+  // Load stats when player name changes or component mounts
+  useEffect(() => {
+    if (playerName) {
+      setPlayerStats(getPlayerStats(playerName));
+    }
+    setGlobalStats(getGlobalStats());
+  }, [playerName]);
+
   // Initialize game - load from storage or create new deck
   useEffect(() => {
     // Always load high score (persistent across games)
@@ -124,6 +167,9 @@ export default function Home() {
     } catch (e) {
       console.error("Failed to load high score:", e);
     }
+
+    // Load initial global stats
+    setGlobalStats(getGlobalStats());
     
     // Check for saved game state - don't auto-load, ask user first
     try {
@@ -341,11 +387,14 @@ export default function Home() {
     
     // Trigger confetti for each player that finishes
     const triggerFinishConfetti = (place, isHuman) => {
+      // Play winning sound
+      playWinningSound();
+
       if (place === 1) {
         // 1st place - big celebration
         const count = 200;
         const defaults = { origin: { y: 0.7 }, zIndex: 9999 };
-        
+
         confetti({ ...defaults, spread: 26, startVelocity: 55, particleCount: Math.floor(count * 0.25) });
         confetti({ ...defaults, spread: 60, particleCount: Math.floor(count * 0.2) });
         confetti({ ...defaults, spread: 100, decay: 0.91, scalar: 0.8, particleCount: Math.floor(count * 0.35) });
@@ -411,6 +460,13 @@ export default function Home() {
 
   const startGame = () => {
     if (!!playerName && !!gameCardNum && numPlayers >= 2) {
+      // Resume audio context and play game start sound
+      resumeAudio().then(() => {
+        playGameStartSound();
+        // Add card dealing sound after a short delay
+        setTimeout(() => playCardDealSound(), 500);
+      });
+
       const newDeck = [...deck];
       shuffleDeck(newDeck);
 
@@ -490,6 +546,10 @@ export default function Home() {
         lastDrawTurn: -1,
         consecutiveDraws: 0,
       });
+
+      // Record game start time for statistics
+      setGameStartTime(Date.now());
+      setGameEndTime(null);
     }
   };
 
@@ -563,6 +623,11 @@ export default function Home() {
   const handleGameCardNumChange = (e) => setGameCardNum(parseInt(e.target.value));
   const handleNumPlayersChange = (e) => setNumPlayers(parseInt(e.target.value));
   const toggleTheme = () => setIsDarkTheme(!isDarkTheme);
+  const toggleAudio = () => {
+    const newState = !audioEnabled;
+    setAudioEnabledState(newState);
+    setAudioEnabled(newState);
+  };
   
   // Helper to get computer name
   const getComputerName = (index) => computerNames[index] || `Bot ${index + 1}`;
@@ -755,6 +820,9 @@ export default function Home() {
   const playCards = (who, cards) => {
     const primaryCard = cards[0];
     const whoName = getTurnPlayerName(who);
+
+    // Play card placement sound
+    playCardPlaceSound();
     
     // Increment move count for this player
     setPlayerMoves(prev => {
@@ -837,6 +905,7 @@ export default function Home() {
              if (cards.length === 1) {
                  // Q penalty: draw 1 card (this also prevents finishing with Q)
                  drawCard(who, 1);
+                 playPenaltySound(); // Play penalty sound for Q
                  if (currentDeckLength === 0) {
                      // Player tried to finish with Q - the draw above already penalizes
                      setMessage(`${whoName} cannot finish with Queen! Drew 1 card.`);
@@ -849,9 +918,11 @@ export default function Home() {
                  setTurn(getNextActiveTurn(who));
                  return;
              } else {
+                 playQueenPairSound(); // Special sound for Q pair
                  setMessage(`${whoName} played Queen Pair!`);
              }
          } else if (effect.type === "CHANGE_COLOR_ANY") {
+             playAceSound(); // Magical sound for Ace color change
              if (who === 0) {
                  setShowColorPicker(true);
                  return;
@@ -860,14 +931,14 @@ export default function Home() {
                  const computerHand = computerDecks[who - 1] || [];
                  // Filter out the cards being played (Ace) to get remaining cards
                  const remainingCards = computerHand.filter(c => !cards.find(pc => pc.id === c.id));
-                 
+
                  const colorCounts = { "♠": 0, "♥️": 0, "♦": 0, "♣": 0 };
                  remainingCards.forEach(c => {
                    if (colorCounts[c.color] !== undefined) {
                      colorCounts[c.color]++;
                    }
                  });
-                 
+
                  // Pick color with most cards in remaining hand
                  let bestColor = colors[0];
                  let maxCount = -1;
@@ -877,7 +948,7 @@ export default function Home() {
                      bestColor = color;
                    }
                  });
-                 
+
                  // If no cards remaining or tie, consider human's weak colors to hurt them
                  if (maxCount <= 1) {
                    const humanWeakColors = getHumanWeakColors();
@@ -895,14 +966,16 @@ export default function Home() {
                      bestColor = getMostPlayedColor();
                    }
                  }
-                 
+
                  setActiveColor(bestColor);
                  setMessage(`${whoName} changed color to ${bestColor}`);
              }
          } else if (effect.type === "SKIP") {
+             playSkipSound(); // Alert sound for skip
              nextSkipActive = true;
              setMessage(`${nextPlayerName} faces a Skip!`);
          } else if (effect.type === "DRAW_SKIP") {
+             playPenaltySound(); // Penalty sound for 2's
              nextPenalty += (2 * cards.length);
              setMessage(`Penalty increased to ${nextPenalty}!`);
          }
@@ -962,6 +1035,23 @@ export default function Home() {
                     }
                 }
                 setGameOver(true);
+
+                // Record game completion statistics
+                const endTime = Date.now();
+                setGameEndTime(endTime);
+                const updatedStats = recordGameCompletion({
+                    playerName,
+                    rankings: [...newRankings, ...Array.from({ length: numPlayers - newRankings.length }, (_, i) => newRankings.length + i)],
+                    gameStartTime,
+                    gameEndTime: endTime,
+                    numPlayers,
+                    gameCardNum
+                });
+
+                // Update displayed stats
+                setPlayerStats(getPlayerStats(playerName));
+                setGlobalStats(getGlobalStats());
+
                 return;
             }
             
@@ -1001,22 +1091,24 @@ export default function Home() {
   const handleDrawClick = () => {
     if (turn !== 0) return; // Only player (turn 0) can click draw
     if (!isPlayerActive(0)) return; // Player already finished
-    
+
     if (skipActive) {
+        playSkipSound(); // Sound for being skipped
         setMessage("Skipped turn!");
-        setSkipActive(false); 
+        setSkipActive(false);
         setTurn(getNextActiveTurn(0));
         return;
     }
-    
+
     if (penaltyStack > 0) {
+        playPenaltySound(); // Penalty sound for drawing cards
         drawCard(0, penaltyStack);
         setPenaltyStack(0);
         setTurn(getNextActiveTurn(0));
         setMessage(`You drew ${penaltyStack} cards due to penalty.`);
     } else {
         drawCard(0, 1);
-        setTurn(getNextActiveTurn(0)); 
+        setTurn(getNextActiveTurn(0));
     }
   };
 
@@ -1295,13 +1387,14 @@ export default function Home() {
                 playCards(turn, [jackCard]);
                 setMessage(`${computerName} countered Skip with a Jack!`);
             } else {
+                playSkipSound(); // Sound for being skipped
                 setMessage(`${computerName} skipped turn.`);
                 setSkipActive(false);
                 setTurn(getNextActiveTurn(turn));
             }
             return;
         }
-          
+
         if (penaltyStack > 0) {
             // Smart: Stack if we have 2, otherwise take the hit
             const penaltyCard = currentComputerDeck.find(c => c.num === "2");
@@ -1309,6 +1402,7 @@ export default function Home() {
                 playCards(turn, [penaltyCard]);
                 return;
             } else {
+                playPenaltySound(); // Penalty sound for drawing cards
                 drawCard(turn, penaltyStack);
                 setPenaltyStack(0);
                 setTurn(getNextActiveTurn(turn));
@@ -1415,7 +1509,7 @@ export default function Home() {
   useEffect(() => {
       setSelectedCards(prev => {
           if (prev.length === 0) return prev;
-          const validSelections = prev.filter(sc => 
+          const validSelections = prev.filter(sc =>
               playerDeck.some(pc => pc.id === sc.id)
           );
           if (validSelections.length !== prev.length) {
@@ -1424,6 +1518,21 @@ export default function Home() {
           return prev;
       });
   }, [playerDeck]);
+
+  // Last call audio effect - play when any player reaches their last card
+  useEffect(() => {
+    if (!gameStart || gameOver) return;
+
+    const hasPlayerLastCard = playerDeck.length === 1 && !rankings.includes(0);
+    const hasComputerLastCard = computerDecks.some((deck, index) =>
+      deck.length === 1 && !rankings.includes(index + 1)
+    );
+
+    if (hasPlayerLastCard || hasComputerLastCard) {
+      // Play last call sound with a slight delay to not overlap with card play sounds
+      setTimeout(() => playLastCallSound(), 300);
+    }
+  }, [playerDeck.length, computerDecks, rankings, gameStart, gameOver]);
 
 
   return (
@@ -1536,7 +1645,7 @@ export default function Home() {
               <div className="text-yellow-300 font-bold text-lg">🏆 Best Record</div>
               <div className="text-white text-2xl font-bold">{highScore.moves} moves</div>
               <div className="text-yellow-200/70 text-sm">by {highScore.name}</div>
-              <button 
+              <button
                 onClick={() => {
                   setHighScore(null);
                   try { localStorage.removeItem(HIGH_SCORE_KEY); } catch(e) {}
@@ -1545,6 +1654,108 @@ export default function Home() {
               >
                 Clear Record
               </button>
+            </div>
+          )}
+
+          {/* Player Badge and Stats */}
+          {playerName && playerStats && (
+            <div className="mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50">
+              <div className="text-center mb-3">
+                <div className="text-white font-bold text-lg mb-1">Player Badge</div>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-3xl">{playerStats.badge.icon}</span>
+                  <div>
+                    <div className="text-white font-bold text-xl" style={{ color: playerStats.badge.color }}>
+                      {playerStats.badge.name}
+                    </div>
+                    <div className="text-white/70 text-sm">
+                      {playerStats.games} games • {playerStats.wins} wins • {playerStats.winRate}% win rate
+                    </div>
+                  </div>
+                </div>
+
+                {/* Next Badge Progress */}
+                {(() => {
+                  const currentBadgeIndex = BADGE_LEVELS.findIndex(b => b.name === playerStats.badge.name);
+                  const nextBadge = BADGE_LEVELS[currentBadgeIndex + 1];
+
+                  if (nextBadge) {
+                    const gamesProgress = Math.min(playerStats.games / nextBadge.minGames, 1);
+                    const winsProgress = Math.min(playerStats.wins / nextBadge.minWins, 1);
+                    const overallProgress = Math.min(gamesProgress, winsProgress);
+
+                    return (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between text-xs text-white/70 mb-1">
+                          <span>Next: {nextBadge.icon} {nextBadge.name}</span>
+                          <span>{Math.round(overallProgress * 100)}%</span>
+                        </div>
+                        <div className="w-full bg-slate-600/50 rounded-full h-2">
+                          <div
+                            className="h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${overallProgress * 100}%`,
+                              backgroundColor: nextBadge.color
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="mt-2 text-center">
+                      <span className="text-yellow-400 text-sm font-bold">🎉 MAX LEVEL ACHIEVED!</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-center">
+                <div className="bg-slate-600/30 rounded-lg p-2">
+                  <div className="text-white/70 text-xs">Best Time</div>
+                  <div className="text-white font-bold text-sm">{formatDuration(playerStats.bestTime)}</div>
+                </div>
+                <div className="bg-slate-600/30 rounded-lg p-2">
+                  <div className="text-white/70 text-xs">Win Rate</div>
+                  <div className="text-white font-bold text-sm">{playerStats.winRate}%</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Global Statistics */}
+          {globalStats && (
+            <div className="mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50">
+              <div className="text-center mb-3">
+                <div className="text-white font-bold text-lg">Global Stats</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-slate-600/30 rounded-lg p-2 text-center">
+                  <div className="text-white/70 text-xs">Total Games</div>
+                  <div className="text-white font-bold text-lg">{globalStats.totalGames}</div>
+                </div>
+                <div className="bg-slate-600/30 rounded-lg p-2 text-center">
+                  <div className="text-white/70 text-xs">Longest Game</div>
+                  <div className="text-white font-bold text-sm">{formatDuration(globalStats.longestGame)}</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {globalStats.mostWins.player && (
+                  <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-2">
+                    <span className="text-white/70 text-sm">Most Wins:</span>
+                    <span className="text-white font-bold">{globalStats.mostWins.player} ({globalStats.mostWins.count})</span>
+                  </div>
+                )}
+                {globalStats.mostLosses.player && (
+                  <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-2">
+                    <span className="text-white/70 text-sm">Most Losses:</span>
+                    <span className="text-white font-bold">{globalStats.mostLosses.player} ({globalStats.mostLosses.count})</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           
@@ -1673,6 +1884,15 @@ export default function Home() {
                   NEW
                 </button>
                 <button
+                  onClick={toggleAudio}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-sm ${
+                    audioEnabled ? "bg-green-500 text-white" : "bg-gray-600 text-gray-300"
+                  }`}
+                  title={audioEnabled ? "Disable Audio" : "Enable Audio"}
+                >
+                  {audioEnabled ? "🔊" : "🔇"}
+                </button>
+                <button
                   onClick={toggleTheme}
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-sm ${
                     isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
@@ -1729,6 +1949,15 @@ export default function Home() {
                 </button>
                 <GameRules isDarkTheme={isDarkTheme} />
                 <button
+                  onClick={toggleAudio}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-base ${
+                    audioEnabled ? "bg-green-500 text-white" : "bg-gray-600 text-gray-300"
+                  }`}
+                  title={audioEnabled ? "Disable Audio" : "Enable Audio"}
+                >
+                  {audioEnabled ? "🔊" : "🔇"}
+                </button>
+                <button
                   onClick={toggleTheme}
                   className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-base ${
                     isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
@@ -1756,7 +1985,21 @@ export default function Home() {
                   return (
                     <div className={`flex flex-col items-center transition-all ${
                       hasFinished ? 'opacity-50' : ''
-                    } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''}`}>
+                    } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''} ${deck.length === 1 && !hasFinished ? 'ring-4 ring-red-500 rounded-lg p-2 bg-red-500/20 animate-pulse shadow-lg shadow-red-500/50' : ''}`}>
+                      {/* Last Call Indicator for Computer */}
+                      {deck.length === 1 && !hasFinished && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          className="mb-1 bg-gradient-to-r from-red-500 to-orange-500 backdrop-blur-md px-3 py-1 rounded-full border-2 border-yellow-400 shadow-lg animate-bounce"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span className="text-white font-black text-xs animate-pulse">🚨</span>
+                            <span className="text-yellow-200 text-xs font-bold">LAST</span>
+                          </div>
+                        </motion.div>
+                      )}
                       {hasFinished ? (
                         <div className="flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-green-500/20 rounded-lg border-2 border-green-400">
                           <span className="text-2xl sm:text-4xl">
@@ -1771,7 +2014,7 @@ export default function Home() {
                                 key={card.id}
                                 card={{...card, color: '?', num: '?'}}
                                 index={cardIndex}
-                                className="border-2 border-white shadow-lg"
+                                className={`border-2 shadow-lg ${deck.length === 1 ? 'border-red-400 shadow-red-500/50 animate-pulse' : 'border-white'}`}
                               />
                             ))}
                           </AnimatePresence>
@@ -1779,7 +2022,7 @@ export default function Home() {
                       )}
                       <div className={`mt-1 text-xs sm:text-sm font-bold text-white px-2 sm:px-3 py-0.5 rounded-full backdrop-blur-sm ${
                         hasFinished ? 'bg-green-500/30' : turn === playerIdx ? 'bg-yellow-500/50' : 'bg-black/30'
-                      }`}>
+                      } ${deck.length === 1 && !hasFinished ? 'bg-red-500/60 animate-pulse' : ''}`}>
                           {hasFinished ? '✓ ' : ''}{getComputerName(computerIdx)} {hasFinished ? '' : `(${deck.length})`}
                       </div>
                     </div>
@@ -1800,11 +2043,25 @@ export default function Home() {
                     const deck = computerDecks[computerIdx];
                     const hasFinished = rankings.includes(playerIdx);
                     const finishPlace = rankings.indexOf(playerIdx);
-                    
+
                     return (
                       <div className={`flex flex-col items-center transition-all ${
                         hasFinished ? 'opacity-50' : ''
-                      } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''}`}>
+                      } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''} ${deck.length === 1 && !hasFinished ? 'ring-4 ring-red-500 rounded-lg p-2 bg-red-500/20 animate-pulse shadow-lg shadow-red-500/50' : ''}`}>
+                        {/* Last Call Indicator for Computer */}
+                        {deck.length === 1 && !hasFinished && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            className="mb-1 bg-gradient-to-r from-red-500 to-orange-500 backdrop-blur-md px-2 py-1 rounded-full border-2 border-yellow-400 shadow-lg animate-bounce"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className="text-white font-black text-xs animate-pulse">🚨</span>
+                              <span className="text-yellow-200 text-xs font-bold">LAST</span>
+                            </div>
+                          </motion.div>
+                        )}
                         {hasFinished ? (
                           <div className="flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-green-500/20 rounded-lg border-2 border-green-400">
                             <span className="text-xl sm:text-2xl">
@@ -1819,7 +2076,7 @@ export default function Home() {
                                   key={card.id}
                                   card={{...card, color: '?', num: '?'}}
                                   index={cardIndex}
-                                  className="border-2 border-white shadow-lg"
+                                  className={`border-2 shadow-lg ${deck.length === 1 ? 'border-red-400 shadow-red-500/50 animate-pulse' : 'border-white'}`}
                                 />
                               ))}
                             </AnimatePresence>
@@ -1827,7 +2084,7 @@ export default function Home() {
                         )}
                         <div className={`mt-1 text-[10px] sm:text-xs font-bold text-white px-2 py-0.5 rounded-full backdrop-blur-sm ${
                           hasFinished ? 'bg-green-500/30' : turn === playerIdx ? 'bg-yellow-500/50' : 'bg-black/30'
-                        }`}>
+                        } ${deck.length === 1 && !hasFinished ? 'bg-red-500/60 animate-pulse' : ''}`}>
                             {hasFinished ? '✓ ' : ''}{getComputerName(computerIdx)} {hasFinished ? '' : `(${deck.length})`}
                         </div>
                       </div>
@@ -1999,11 +2256,25 @@ export default function Home() {
                     const deck = computerDecks[computerIdx];
                     const hasFinished = rankings.includes(playerIdx);
                     const finishPlace = rankings.indexOf(playerIdx);
-                    
+
                     return (
                       <div className={`flex flex-col items-center transition-all ${
                         hasFinished ? 'opacity-50' : ''
-                      } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''}`}>
+                      } ${turn === playerIdx && !hasFinished ? 'ring-2 ring-yellow-400 rounded-lg p-2 bg-yellow-400/10' : ''} ${deck.length === 1 && !hasFinished ? 'ring-4 ring-red-500 rounded-lg p-2 bg-red-500/20 animate-pulse shadow-lg shadow-red-500/50' : ''}`}>
+                        {/* Last Call Indicator for Computer */}
+                        {deck.length === 1 && !hasFinished && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            className="mb-1 bg-gradient-to-r from-red-500 to-orange-500 backdrop-blur-md px-2 py-1 rounded-full border-2 border-yellow-400 shadow-lg animate-bounce"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className="text-white font-black text-xs animate-pulse">🚨</span>
+                              <span className="text-yellow-200 text-xs font-bold">LAST</span>
+                            </div>
+                          </motion.div>
+                        )}
                         {hasFinished ? (
                           <div className="flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-green-500/20 rounded-lg border-2 border-green-400">
                             <span className="text-xl sm:text-2xl">
@@ -2018,7 +2289,7 @@ export default function Home() {
                                   key={card.id}
                                   card={{...card, color: '?', num: '?'}}
                                   index={cardIndex}
-                                  className="border-2 border-white shadow-lg"
+                                  className={`border-2 shadow-lg ${deck.length === 1 ? 'border-red-400 shadow-red-500/50 animate-pulse' : 'border-white'}`}
                                 />
                               ))}
                             </AnimatePresence>
@@ -2026,7 +2297,7 @@ export default function Home() {
                         )}
                         <div className={`mt-1 text-[10px] sm:text-xs font-bold text-white px-2 py-0.5 rounded-full backdrop-blur-sm ${
                           hasFinished ? 'bg-green-500/30' : turn === playerIdx ? 'bg-yellow-500/50' : 'bg-black/30'
-                        }`}>
+                        } ${deck.length === 1 && !hasFinished ? 'bg-red-500/60 animate-pulse' : ''}`}>
                             {hasFinished ? '✓ ' : ''}{getComputerName(computerIdx)} {hasFinished ? '' : `(${deck.length})`}
                         </div>
                       </div>
@@ -2054,6 +2325,20 @@ export default function Home() {
           <div className={`flex-shrink-0 flex flex-col items-center justify-end pb-2 sm:pb-4 overflow-visible transition-all ${
             rankings.includes(0) ? 'opacity-60' : ''
           }`}>
+            {/* Last Call Indicator - Show when player has last card */}
+            {playerDeck.length === 1 && !rankings.includes(0) && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="mb-2 bg-gradient-to-r from-red-500 to-orange-500 backdrop-blur-md px-4 py-2 rounded-full border-2 border-yellow-400 shadow-lg animate-pulse"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-black text-sm sm:text-base animate-bounce">🚨 LAST CALL!</span>
+                  <span className="text-yellow-200 text-xs sm:text-sm font-bold">Final Card</span>
+                </div>
+              </motion.div>
+            )}
             {/* Skip Indicator - Show when player is skipped and doesn't have Jack */}
             {turn === 0 && skipActive && !playerDeck.some(card => card.num === "J") && (
               <motion.div
@@ -2079,10 +2364,10 @@ export default function Home() {
                   {playerMoves[0] || 0} moves
               </div>
             </div>
-            <div 
+            <div
               className={`flex overflow-visible p-2 sm:p-4 min-h-[100px] sm:min-h-[140px] md:min-h-[160px] items-end pb-4 sm:pb-8 px-4 sm:px-6 justify-center transition-all ${
                 turn === 0 && !rankings.includes(0) ? 'ring-2 ring-yellow-400 rounded-xl bg-yellow-400/10' : ''
-              }`}
+              } ${playerDeck.length === 1 && !rankings.includes(0) ? 'ring-4 ring-red-500 rounded-xl bg-red-500/20 animate-pulse shadow-lg shadow-red-500/50' : ''}`}
             >
               <AnimatePresence>
                 {sortCardsByColor(playerDeck).map((card, index) => {
