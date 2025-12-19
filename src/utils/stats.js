@@ -1,5 +1,6 @@
 // Game Statistics and Level System
 const STATS_KEY = "take2-game-stats";
+const PLAYER_NAMES_KEY = "take2-player-names";
 
 // Badge levels based on performance
 export const BADGE_LEVELS = [
@@ -198,6 +199,34 @@ export const formatDuration = (milliseconds) => {
     return `${minutes}m ${remainingSeconds}s`;
   }
   return `${remainingSeconds}s`;
+};
+
+// Save a player name to the list of previously used names
+export const savePlayerName = (playerName) => {
+  if (!playerName || playerName.trim() === "") return;
+
+  try {
+    const savedNames = getPlayerNames();
+    const trimmedName = playerName.trim();
+
+    // Add to the beginning if not already there, keep only last 10 names
+    const updatedNames = [trimmedName, ...savedNames.filter(name => name !== trimmedName)].slice(0, 10);
+
+    localStorage.setItem(PLAYER_NAMES_KEY, JSON.stringify(updatedNames));
+  } catch (e) {
+    console.warn("Failed to save player name:", e);
+  }
+};
+
+// Get the list of previously used player names
+export const getPlayerNames = () => {
+  try {
+    const saved = localStorage.getItem(PLAYER_NAMES_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) {
+    console.warn("Failed to load player names:", e);
+    return [];
+  }
 };
 
 // Reset all statistics (for development/testing)

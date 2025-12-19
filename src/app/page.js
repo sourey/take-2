@@ -28,7 +28,9 @@ import {
   getGlobalStats,
   getPlayerStats,
   formatDuration,
-  BADGE_LEVELS
+  BADGE_LEVELS,
+  savePlayerName,
+  getPlayerNames
 } from "@/utils/stats";
 
 const colors = ["♠", "♥️", "♦", "♣"];
@@ -64,6 +66,7 @@ const sortCardsByColor = (cards) => {
 
 const STORAGE_KEY = "take2-game-state";
 const HIGH_SCORE_KEY = "take2-high-score";
+const GAME_VERSION = "v1.0";
 
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
@@ -105,6 +108,7 @@ export default function Home() {
   const [gameEndTime, setGameEndTime] = useState(null);
   const [playerStats, setPlayerStats] = useState(null);
   const [globalStats, setGlobalStats] = useState(null);
+  const [savedPlayerNames, setSavedPlayerNames] = useState([]);
 
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
@@ -168,8 +172,9 @@ export default function Home() {
       console.error("Failed to load high score:", e);
     }
 
-    // Load initial global stats
+    // Load initial global stats and player names
     setGlobalStats(getGlobalStats());
+    setSavedPlayerNames(getPlayerNames());
     
     // Check for saved game state - don't auto-load, ask user first
     try {
@@ -318,6 +323,9 @@ export default function Home() {
       lastDrawTurn: -1,
       consecutiveDraws: 0,
     });
+
+    // Refresh saved player names to show dropdown if names were saved
+    setSavedPlayerNames(getPlayerNames());
   };
 
   // Resume saved game
@@ -547,7 +555,8 @@ export default function Home() {
         consecutiveDraws: 0,
       });
 
-      // Record game start time for statistics
+      // Save player name and record game start time for statistics
+      savePlayerName(playerName);
       setGameStartTime(Date.now());
       setGameEndTime(null);
     }
@@ -1048,9 +1057,13 @@ export default function Home() {
                     gameCardNum
                 });
 
-                // Update displayed stats
+                // Save player name for future use
+                savePlayerName(playerName);
+
+                // Update displayed stats and player names
                 setPlayerStats(getPlayerStats(playerName));
                 setGlobalStats(getGlobalStats());
+                setSavedPlayerNames(getPlayerNames());
 
                 return;
             }
@@ -1608,13 +1621,42 @@ export default function Home() {
         <div className="flex flex-col justify-center items-center h-screen px-4">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 md:mb-8 text-white drop-shadow-lg">TAKE 2</h1>
           <div className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8 text-black w-full max-w-xs">
-            <input
-              type="text"
-              placeholder="Enter your name"
-              value={playerName}
-              onChange={handlePlayerNameChange}
-              className="px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
-            />
+            {/* Player Name Input with Dropdown */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Enter your name"
+                value={playerName}
+                onChange={handlePlayerNameChange}
+                className="w-full px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base"
+              />
+              {savedPlayerNames.length > 0 && (
+              <div className="text-white/70 text-xs text-center mt-4 mb-4">
+                Or select from your previous player
+              </div>
+            )}
+              {savedPlayerNames.length > 0 && (
+                <div className="mt-2">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setPlayerName(e.target.value);
+                      }
+                    }}
+                    className="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg bg-white/90 text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
+                  >
+                    <option value="" disabled>Select player</option>
+                    {savedPlayerNames.map((name, index) => (
+                      <option key={index} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            
             <input
               type="number"
               placeholder="Number of cards (e.g. 7)"
@@ -2441,6 +2483,11 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Game Version Footer */}
+      <div className="absolute bottom-2 right-2 text-white/30 text-xs font-mono bg-black/20 backdrop-blur-sm px-2 py-1 rounded-md border border-white/10">
+        {GAME_VERSION}
+      </div>
       </div>
     </div>
   );
