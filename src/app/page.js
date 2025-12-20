@@ -2702,7 +2702,7 @@ export default function Home() {
                 return (
                   <div className="text-center py-4">
                     <span className="text-yellow-400 text-lg font-bold">🎉 MAX LEVEL ACHIEVED!</span>
-                    <div className="text-white/70 text-sm mt-1">You've reached the highest badge!</div>
+                    <div className="text-white/70 text-sm mt-1">You&apos;ve reached the highest badge!</div>
                   </div>
                 );
               })()}
