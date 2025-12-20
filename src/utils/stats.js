@@ -1,4 +1,6 @@
 // Game Statistics and Level System
+import { getDeviceId, getDeviceName } from './deviceId.js';
+
 const STATS_KEY = "take2-game-stats";
 const PLAYER_NAMES_KEY = "take2-player-names";
 
@@ -114,7 +116,13 @@ export const recordGameCompletion = async (gameData) => {
   if (typeof window !== 'undefined') {
     try {
       const { syncStatsToGlobal } = await import('./mongoStorage.js');
-      syncStatsToGlobal(gameData).catch(err => {
+      // Add device info to game data for better tracking
+      const gameDataWithDevice = {
+        ...gameData,
+        deviceId: getDeviceId(),
+        deviceName: getDeviceName(),
+      };
+      syncStatsToGlobal(gameDataWithDevice).catch(err => {
         console.warn('Failed to sync to global leaderboard:', err);
       });
     } catch (err) {
