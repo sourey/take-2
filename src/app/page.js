@@ -110,6 +110,7 @@ export default function Home() {
   const [globalStats, setGlobalStats] = useState(null);
   const [savedPlayerNames, setSavedPlayerNames] = useState([]);
   const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
 
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
@@ -1831,68 +1832,31 @@ export default function Home() {
             </div>
           )} */}
 
-          {/* Player Badge and Stats - Mobile Optimized */}
+          {/* Player Badge - Modal on Mobile, Full on Desktop */}
           {playerName && playerStats && playerStats.games > 0 && (
-            <div className="mb-3 sm:mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-3 py-3 sm:px-6 sm:py-4 border border-slate-600/50">
-              {/* Mobile: Compact horizontal layout */}
-              <div className="block sm:hidden">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+            <>
+              {/* Mobile: Compact badge trigger */}
+              <div className="block sm:hidden mb-3">
+                <button
+                  onClick={() => setShowBadgeModal(true)}
+                  className="w-full bg-gradient-to-r from-slate-700/50 to-slate-800/50 hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl px-4 py-3 border border-slate-600/50 transition-all transform hover:scale-105 shadow-lg"
+                >
+                  <div className="flex items-center justify-center gap-3">
                     <span className="text-2xl">{playerStats.badge.icon}</span>
-                    <div>
+                    <div className="text-center">
                       <div className="text-white font-bold text-sm" style={{ color: playerStats.badge.color }}>
                         {playerStats.badge.name}
                       </div>
                       <div className="text-white/60 text-xs">
-                        {playerStats.games}g • {playerStats.wins}w • {playerStats.winRate}%
+                        Tap for details
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-white/60 text-xs">Best</div>
-                    <div className="text-white font-bold text-xs">{formatDuration(playerStats.bestTime)}</div>
-                  </div>
-                </div>
-
-                {/* Progress bar - simplified for mobile */}
-                {(() => {
-                  const currentBadgeIndex = BADGE_LEVELS.findIndex(b => b.name === playerStats.badge.name);
-                  const nextBadge = BADGE_LEVELS[currentBadgeIndex + 1];
-
-                  if (nextBadge) {
-                    const gamesProgress = Math.min(playerStats.games / nextBadge.minGames, 1);
-                    const winsProgress = Math.min(playerStats.wins / nextBadge.minWins, 1);
-                    const overallProgress = Math.min(gamesProgress, winsProgress);
-
-                    return (
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between text-xs text-white/70 mb-1">
-                          <span>Next: {nextBadge.icon}</span>
-                          <span>{Math.round(overallProgress * 100)}%</span>
-                        </div>
-                        <div className="w-full bg-slate-600/50 rounded-full h-1.5">
-                          <div
-                            className="h-1.5 rounded-full transition-all duration-300"
-                            style={{
-                              width: `${overallProgress * 100}%`,
-                              backgroundColor: nextBadge.color
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="mt-2 text-center">
-                      <span className="text-yellow-400 text-xs font-bold">🎉 MAX!</span>
-                    </div>
-                  );
-                })()}
+                </button>
               </div>
 
-              {/* Desktop: Full layout */}
-              <div className="hidden sm:block">
+              {/* Desktop: Full badge display */}
+              <div className="hidden sm:block mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50">
                 <div className="text-center mb-3">
                   <div className="flex items-center justify-center gap-3">
                     <span className="text-3xl">{playerStats.badge.icon}</span>
@@ -1954,7 +1918,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
          
@@ -2651,6 +2615,99 @@ export default function Home() {
               </AnimatePresence>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Badge Details Modal - Mobile Only */}
+      {showBadgeModal && playerStats && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 sm:hidden">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-600 relative"
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setShowBadgeModal(false)}
+              className="absolute top-4 right-4 text-white/60 hover:text-white text-xl font-bold"
+            >
+              ✕
+            </button>
+
+            <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-6 drop-shadow-lg">
+              🏆 Badge Details
+            </h2>
+
+            <div className="space-y-4">
+              {/* Current Badge */}
+              <div className="text-center mb-4">
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <span className="text-4xl">{playerStats.badge.icon}</span>
+                  <div>
+                    <div className="text-white font-bold text-xl" style={{ color: playerStats.badge.color }}>
+                      {playerStats.badge.name}
+                    </div>
+                    <div className="text-white/70 text-sm">
+                      {playerStats.games} games • {playerStats.wins} wins
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
+                  <div className="text-white/70 text-xs mb-1">Win Rate</div>
+                  <div className="text-white font-bold text-lg">{playerStats.winRate}%</div>
+                </div>
+                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
+                  <div className="text-white/70 text-xs mb-1">Best Time</div>
+                  <div className="text-white font-bold text-sm">{formatDuration(playerStats.bestTime)}</div>
+                </div>
+              </div>
+
+              {/* Next Badge Progress */}
+              {(() => {
+                const currentBadgeIndex = BADGE_LEVELS.findIndex(b => b.name === playerStats.badge.name);
+                const nextBadge = BADGE_LEVELS[currentBadgeIndex + 1];
+
+                if (nextBadge) {
+                  const gamesProgress = Math.min(playerStats.games / nextBadge.minGames, 1);
+                  const winsProgress = Math.min(playerStats.wins / nextBadge.minWins, 1);
+                  const overallProgress = Math.min(gamesProgress, winsProgress);
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm text-white/70">
+                        <span>Next: {nextBadge.icon} {nextBadge.name}</span>
+                        <span>{Math.round(overallProgress * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-600/50 rounded-full h-2">
+                        <div
+                          className="h-2 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${overallProgress * 100}%`,
+                            backgroundColor: nextBadge.color
+                          }}
+                        />
+                      </div>
+                      <div className="text-center text-xs text-white/60 mt-1">
+                        Need {nextBadge.minWins} wins in {nextBadge.minGames} games
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="text-center py-4">
+                    <span className="text-yellow-400 text-lg font-bold">🎉 MAX LEVEL ACHIEVED!</span>
+                    <div className="text-white/70 text-sm mt-1">You've reached the highest badge!</div>
+                  </div>
+                );
+              })()}
+            </div>
+          </motion.div>
         </div>
       )}
 
