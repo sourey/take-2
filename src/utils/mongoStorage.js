@@ -2,11 +2,11 @@
 // This module handles syncing local stats with global MongoDB storage
 
 import { loadStats, saveStats, getGlobalStats } from './stats.js';
+import { getToken } from './auth.js';
 
 // MongoDB Configuration
 const MONGO_CONFIG = {
   apiUrl: process.env.NEXT_PUBLIC_MONGO_API_URL || 'http://localhost:3001/api',
-  apiKey: process.env.NEXT_PUBLIC_MONGO_API_KEY,
 };
 
 // Check if MongoDB API is configured
@@ -19,16 +19,18 @@ let globalStatsCache = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// API request helper
+// API request helper (includes auth token if available)
 const apiRequest = async (endpoint, options = {}) => {
   if (!hasMongoConfig()) {
     throw new Error('MongoDB API not configured');
   }
 
   const url = `${MONGO_CONFIG.apiUrl}${endpoint}`;
+  const token = getToken();
+  
   const headers = {
     'Content-Type': 'application/json',
-    ...(MONGO_CONFIG.apiKey && { 'Authorization': `Bearer ${MONGO_CONFIG.apiKey}` }),
+    ...(token && { 'Authorization': `Bearer ${token}` }),
   };
 
   try {

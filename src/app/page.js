@@ -33,8 +33,16 @@ import {
   savePlayerName,
   getPlayerNames
 } from "@/utils/stats";
+import {
+  isAuthenticated,
+  getUser,
+  getDisplayName,
+  logout,
+  refreshUserData
+} from "@/utils/auth";
+import { AuthModal } from "./components/AuthModal";
 
-const colors = ["♠", "♥️", "♦", "♣"];
+const colors = ["♠", "♥️",  "♣", "♦"];
 const cardNums = [
   "A",
   "2",
@@ -67,7 +75,7 @@ const sortCardsByColor = (cards) => {
  
 const STORAGE_KEY = "take2-game-state";
 const HIGH_SCORE_KEY = "take2-high-score";
-const GAME_VERSION = "v1.1";
+const GAME_VERSION = "v1.2";
 
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
@@ -113,6 +121,10 @@ export default function Home() {
   const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  
+  // Auth state
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
@@ -143,6 +155,15 @@ export default function Home() {
 
     // Initialize audio system
     initAudio();
+
+    // Initialize auth - check if user is logged in
+    if (isAuthenticated()) {
+      const user = getUser();
+      if (user) {
+        setCurrentUser(user);
+        setPlayerName(user.displayName || user.username);
+      }
+    }
 
     // Register service worker for offline support
     if ('serviceWorker' in navigator) {
@@ -1066,7 +1087,7 @@ export default function Home() {
                 }
 
                 // Function to complete the game
-                const completeGame = () => {
+                const completeGame = async () => {
                     setGameOver(true);
 
                     // Record game completion statistics
@@ -1088,6 +1109,14 @@ export default function Home() {
                     setPlayerStats(getPlayerStats(playerName));
                     setGlobalStats(getGlobalStats());
                     setSavedPlayerNames(getPlayerNames());
+
+                    // Refresh user data if logged in
+                    if (currentUser) {
+                        const updatedUser = await refreshUserData();
+                        if (updatedUser) {
+                            setCurrentUser(updatedUser);
+                        }
+                    }
                 };
 
                 // If computer won, delay showing game over to let player see the winning card
@@ -1694,20 +1723,56 @@ export default function Home() {
             <div className="absolute -bottom-4 left-1/3 text-yellow-300 animate-ping" style={{animationDelay: '2s'}}>✨</div>
           </div>
           <div className="flex flex-col gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6 md:mb-8 text-black w-full max-w-xs mt-8 sm:mt-0">
+            {/* Auth Section */}
+            {currentUser ? (
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg p-3 border border-green-500/30 mb-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">👤</span>
+                    <div>
+                      <div className="text-white font-bold text-sm">{currentUser.displayName || currentUser.username}</div>
+                      <div className="text-white/60 text-xs">
+                        {currentUser.stats?.wins || 0} wins • {currentUser.stats?.games || 0} games
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setCurrentUser(null);
+                      setPlayerName('');
+                    }}
+                    className="text-white/60 hover:text-white text-xs underline"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-400 hover:to-purple-400 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg mb-2 text-sm"
+              >
+                🔐 Login / Register
+              </button>
+            )}
+
             {/* Player Name Input with Dropdown */}
             <div className="relative">
               <input
                 type="text"
-                placeholder="Enter your name"
+                placeholder={currentUser ? "Playing as..." : "Enter your name"}
                 value={playerName}
                 onChange={handlePlayerNameChange}
-                className="w-full px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base mb-4 sm:mb-0"
+                disabled={!!currentUser}
+                className={`w-full px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base mb-4 sm:mb-0 ${currentUser ? 'opacity-70 cursor-not-allowed' : ''}`}
               />
-              {savedPlayerNames.length > 0 && (
+              {!currentUser && savedPlayerNames.length > 0 && (
               <div className="text-white/70 text-xs text-center mt-4 mb-4">
                 Or select from your previous player
               </div>
             )}
+              {!currentUser && (
               <div className="mt-2">
                 <select
                   value=""
@@ -1719,11 +1784,6 @@ export default function Home() {
                   className="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg bg-white/90 text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
                 >
                   <option value="" disabled>Select player name...</option>
-                  {/* {savedPlayerNames.length === 0 && (
-                    <option value="" disabled className="text-gray-400">
-                      No saved names yet - play a game first!
-                    </option>
-                  )} */}
                   {savedPlayerNames.map((name, index) => (
                     <option key={index} value={name}>
                       {name}
@@ -1731,6 +1791,7 @@ export default function Home() {
                   ))}
                 </select>
               </div>
+              )}
             </div>
             
             {/* Number of Cards Selector */}
@@ -2730,6 +2791,17 @@ export default function Home() {
       {showLeaderboardModal && (
         <Leaderboard onClose={() => setShowLeaderboardModal(false)} />
       )}
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          setPlayerName(user.displayName || user.username);
+          setPlayerStats(getPlayerStats(user.username));
+        }}
+      />
 
       {/* Global Stats Modal */}
       {showGlobalStatsModal && globalStats && (
