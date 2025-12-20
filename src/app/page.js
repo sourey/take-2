@@ -5,6 +5,7 @@ import { shuffleDeck, isRedColor } from "@/utils/utils";
 import { isValidMove, getCardEffect, checkWinCondition, isPowerCard } from "@/utils/rule";
 import { Card, preloadCards } from "./components/Card";
 import { GameRules } from "./components/GameRules"; // Import GameRules component
+import { Leaderboard } from "./components/Leaderboard";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import {
@@ -111,6 +112,7 @@ export default function Home() {
   const [savedPlayerNames, setSavedPlayerNames] = useState([]);
   const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
   // Multi-select state
   const [selectedCards, setSelectedCards] = useState([]);
@@ -1054,33 +1056,46 @@ export default function Home() {
             const remainingPlayers = numPlayers - newRankings.length;
             if (remainingPlayers <= 1) {
                 // Find the last player and add them to rankings
+                let finalRankings = newRankings;
                 for (let i = 0; i < numPlayers; i++) {
                     if (!newRankings.includes(i)) {
-                        setRankings([...newRankings, i]);
+                        finalRankings = [...newRankings, i];
+                        setRankings(finalRankings);
                         break;
                     }
                 }
-                setGameOver(true);
 
-                // Record game completion statistics
-                const endTime = Date.now();
-                setGameEndTime(endTime);
-                const updatedStats = recordGameCompletion({
-                    playerName,
-                    rankings: [...newRankings, ...Array.from({ length: numPlayers - newRankings.length }, (_, i) => newRankings.length + i)],
-                    gameStartTime,
-                    gameEndTime: endTime,
-                    numPlayers,
-                    gameCardNum
-                });
+                // Function to complete the game
+                const completeGame = () => {
+                    setGameOver(true);
 
-                // Save player name for future use
-                savePlayerName(playerName);
+                    // Record game completion statistics
+                    const endTime = Date.now();
+                    setGameEndTime(endTime);
+                    recordGameCompletion({
+                        playerName,
+                        rankings: finalRankings,
+                        gameStartTime,
+                        gameEndTime: endTime,
+                        numPlayers,
+                        gameCardNum
+                    });
 
-                // Update displayed stats and player names
-                setPlayerStats(getPlayerStats(playerName));
-                setGlobalStats(getGlobalStats());
-                setSavedPlayerNames(getPlayerNames());
+                    // Save player name for future use
+                    savePlayerName(playerName);
+
+                    // Update displayed stats and player names
+                    setPlayerStats(getPlayerStats(playerName));
+                    setGlobalStats(getGlobalStats());
+                    setSavedPlayerNames(getPlayerNames());
+                };
+
+                // If computer won, delay showing game over to let player see the winning card
+                if (who > 0) {
+                    setTimeout(completeGame, 1500);
+                } else {
+                    completeGame();
+                }
 
                 return;
             }
@@ -2711,6 +2726,11 @@ export default function Home() {
         </div>
       )}
 
+      {/* Leaderboard Modal */}
+      {showLeaderboardModal && (
+        <Leaderboard onClose={() => setShowLeaderboardModal(false)} />
+      )}
+
       {/* Global Stats Modal */}
       {showGlobalStatsModal && globalStats && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
@@ -2733,36 +2753,58 @@ export default function Home() {
             </h2>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
-                  <div className="text-white/70 text-xs mb-1">Total Games</div>
-                  <div className="text-white font-bold text-2xl">{globalStats.totalGames}</div>
+              {(!globalStats.totalGames || globalStats.totalGames === 0) ? (
+                <div className="text-center py-6">
+                  <div className="text-4xl mb-3">🎮</div>
+                  <div className="text-white/70 text-sm">No games played yet!</div>
+                  <div className="text-white/50 text-xs mt-2">Complete a game to see global stats</div>
                 </div>
-                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
-                  <div className="text-white/70 text-xs mb-1">Longest Game</div>
-                  <div className="text-white font-bold text-lg">{formatDuration(globalStats.longestGame)}</div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {globalStats.mostWins.player && (
-                  <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-3 border border-green-500/30">
-                    <span className="text-white/70 text-sm">👑 Most Wins:</span>
-                    <span className="text-white font-bold">{globalStats.mostWins.player} ({globalStats.mostWins.count})</span>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-slate-600/30 rounded-lg p-3 text-center">
+                      <div className="text-white/70 text-xs mb-1">Total Games</div>
+                      <div className="text-white font-bold text-2xl">{globalStats.totalGames || 0}</div>
+                    </div>
+                    <div className="bg-slate-600/30 rounded-lg p-3 text-center">
+                      <div className="text-white/70 text-xs mb-1">Longest Game</div>
+                      <div className="text-white font-bold text-lg">{globalStats.longestGame ? formatDuration(globalStats.longestGame) : '--'}</div>
+                    </div>
                   </div>
-                )}
-                {globalStats.mostLosses.player && (
-                  <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-3 border border-red-500/30">
-                    <span className="text-white/70 text-sm">💔 Most Losses:</span>
-                    <span className="text-white font-bold">{globalStats.mostLosses.player} ({globalStats.mostLosses.count})</span>
-                  </div>
-                )}
-              </div>
 
-              <div className="text-center pt-2">
-                <div className="text-white/60 text-xs">
-                  Win Rate: <span className="text-white font-bold">{globalStats.winRate}%</span>
-                </div>
+                  <div className="space-y-3">
+                    {globalStats.mostWins?.player && (
+                      <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-3 border border-green-500/30">
+                        <span className="text-white/70 text-sm">👑 Most Wins:</span>
+                        <span className="text-white font-bold">{globalStats.mostWins.player} ({globalStats.mostWins.count})</span>
+                      </div>
+                    )}
+                    {globalStats.mostLosses?.player && (
+                      <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-3 border border-red-500/30">
+                        <span className="text-white/70 text-sm">💔 Most Losses:</span>
+                        <span className="text-white font-bold">{globalStats.mostLosses.player} ({globalStats.mostLosses.count})</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-center pt-4">
+                    <div className="text-white/60 text-xs">
+                      Win Rate: <span className="text-white font-bold">{globalStats.winRate || (globalStats.totalGames > 0 ? ((globalStats.totalWins / globalStats.totalGames) * 100).toFixed(1) : 0)}%</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="pt-4">
+                <button
+                  onClick={() => {
+                    setShowGlobalStatsModal(false);
+                    setShowLeaderboardModal(true);
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-400 hover:to-blue-400 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  🏆 View Full Leaderboard
+                </button>
               </div>
             </div>
           </motion.div>

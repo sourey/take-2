@@ -11,8 +11,10 @@ Take 2 is an exciting card game similar to Uno but with unique strategic element
 ### 🎲 Key Features
 - **Fast-paced gameplay** (5-40 minutes depending on card count)
 - **Strategic depth** with special card mechanics
+- **AI opponents** with adaptive difficulty
 - **Offline-capable** Progressive Web App (PWA)
 - **Achievement system** with badges and statistics
+- **Global leaderboards** via AWS S3 integration
 - **Responsive design** for mobile and desktop
 
 ## 🎮 How to Play
@@ -120,11 +122,142 @@ Earn prestigious badges based on victories (requires equal games played):
 - **Best completion time**
 - **Current badge** and progress
 
-#### **Global Leaderboards**
-- **Most wins** across all players
+#### **Global Leaderboards** 🌍
+- **Most wins** across all players worldwide
 - **Most losses** (for bragging rights!)
-- **Longest game** duration
+- **Longest game** duration records
+- **Best win rates** (minimum 5 games)
+- **Fastest completion times**
 - **Total games** played globally
+- **Real-time sync** via MongoDB
+
+#### **Database Integration** 🍃
+- **MongoDB** for global leaderboards and statistics
+- **Automatic sync** when games complete
+- **Offline-first** design (works without internet)
+- **Fallback to local** stats when MongoDB unavailable
+- **Privacy-focused** (only aggregated statistics)
+
+### 🛠️ **MongoDB Setup (Optional)**
+
+#### **1. Setup MongoDB Atlas (Cloud)**
+MongoDB Atlas is the recommended approach for production:
+
+1. **Create Account**: Visit [https://www.mongodb.com/atlas](https://www.mongodb.com/atlas)
+2. **Create Free Cluster**:
+   - Choose "FREE" tier (M0 Sandbox)
+   - Select your preferred cloud provider & region
+   - Cluster name: `take2-leaderboard`
+3. **Create Database User**:
+   - Go to "Database Access" → "Add New Database User"
+   - Username: `take2user`
+   - Password: Choose a strong password
+   - Built-in Role: `Read and write any database`
+4. **Network Access**:
+   - Go to "Network Access" → "Add IP Address"
+   - Click "Allow Access from Anywhere" (0.0.0.0/0)
+5. **Get Connection String**:
+   - Go to "Clusters" → "Connect" → "Connect your application"
+   - Copy the connection string
+   - Replace `<username>`, `<password>`, and `<database>` in the string
+
+#### **2. Setup API Server**
+```bash
+# Create API server directory
+mkdir api-server && cd api-server
+
+# Copy the API server files
+cp ../api-server.js ./
+cp ../api-server/package.json ./
+cp ../api-server/vercel.json ./
+
+# Install dependencies
+npm install
+
+# Create .env file with your Atlas connection string
+# Replace with your actual Atlas connection string
+echo "MONGODB_URI=mongodb+srv://take2user:YOUR_SECURE_PASSWORD@cluster0.xxxxx.mongodb.net/take2-leaderboard?retryWrites=true&w=majority" > .env
+```
+
+#### **3. Deploy API Server**
+Choose one of these deployment options:
+
+**Option A: Vercel (Recommended)**
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy API server
+cd api-server
+vercel --prod
+# Follow prompts to set environment variables
+```
+
+**Option B: Railway**
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and deploy
+railway login
+railway init
+railway up
+```
+
+**Option C: Render**
+- Import your GitHub repo
+- Set build command: `npm install`
+- Set start command: `npm start`
+- Add environment variables
+
+**Option D: Local Development**
+```bash
+# Run locally for development
+cd api-server
+npm run dev  # Runs on http://localhost:3001
+```
+
+#### **5. Quick Setup Commands**
+```bash
+# 1. Install Vercel CLI globally
+npm i -g vercel
+
+# 2. Deploy to Vercel (from api-server directory)
+cd api-server
+vercel
+
+# 3. Set environment variables in Vercel dashboard
+# Add: MONGODB_URI with your Atlas connection string
+
+# 4. Configure game client (.env.local)
+echo "NEXT_PUBLIC_MONGO_API_URL=https://your-api-server.vercel.app/api" >> ../.env.local
+```
+
+#### **6. Test the Setup**
+```bash
+# Test API health
+curl https://your-api-server.vercel.app/api/health
+
+# Should return: {"status":"OK","mongodb":"connected",...}
+```
+
+#### **7. Configure Game Client**
+Add to your `.env.local`:
+```bash
+# Replace with your deployed API URL
+NEXT_PUBLIC_MONGO_API_URL=https://your-api-server.vercel.app/api
+```
+
+#### **4. Database Schema**
+The API server automatically creates:
+- **games** collection: Individual game records
+- **globalstats** collection: Aggregated statistics
+
+#### **5. API Endpoints**
+- `GET /api/health` - Server health check
+- `POST /api/games` - Submit game results
+- `GET /api/stats/global` - Get global statistics
+- `GET /api/leaderboard` - Get leaderboard data
 
 #### **Progressive Web App**
 - **Offline play** with cached card images
@@ -197,6 +330,17 @@ pnpm install
 # Start development server
 npm run dev
 ```
+
+#### **Environment Variables**
+Create a `.env.local` file for MongoDB integration (optional):
+
+```bash
+# MongoDB API Configuration (for global leaderboards)
+NEXT_PUBLIC_MONGO_API_URL=http://localhost:3001/api
+NEXT_PUBLIC_MONGO_API_KEY=your-api-key-optional
+```
+
+**Note:** Without MongoDB setup, the game works normally with local-only statistics.
 
 #### **Development**
 ```bash
