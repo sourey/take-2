@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <!-- Card background with rounded corners -->
+  <rect x="9" y="9" width="162" height="162" rx="18" ry="18" fill="#fbbf24" stroke="#000" stroke-width="3"/>
+
+  <!-- Top-left corner -->
+  <text x="24" y="36" font-family="serif" font-size="24" fill="#000" font-weight="bold">T</text>
+  <text x="24" y="60" font-family="serif" font-size="24" fill="#000">`</text>
+
+  <!-- Bottom-right corner -->
+  <text x="138" y="144" font-family="serif" font-size="24" fill="#000" font-weight="bold">2</text>
+  <text x="138" y="120" font-family="serif" font-size="24" fill="#000">`</text>
+
+  <!-- Center large "T2" -->
+  <text x="90" y="102" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#000">T2</text>
+</svg>

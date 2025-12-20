@@ -144,31 +144,36 @@ Earn prestigious badges based on victories (requires equal games played):
 
 The app includes comprehensive favicon and PWA icon support. The following image assets are referenced but need to be created:
 
-### **Required Images** (create these for production):
+### **Current Favicon Setup** ✅
 ```
 public/
-├── favicon-16x16.png      # 16x16 standard favicon
-├── favicon-32x32.png      # 32x32 standard favicon
-├── apple-touch-icon.png   # 180x180 Apple touch icon
-├── icon-192.png          # 192x192 PWA icon
-├── icon-512.png          # 512x512 PWA icon
-├── og-image.png          # 1200x630 Open Graph image
-├── screenshot-mobile.png  # 390x844 PWA screenshot
-├── screenshot-desktop.png # 1280x720 PWA screenshot
-└── mstile-*.png          # Microsoft tile images (70x70, 144x144, 150x150, 310x310)
+├── favicon.svg            # 32x32 main favicon (card with T2)
+├── safari-pinned-tab.svg  # Safari pinned tab icon
+├── icon-192.svg          # 192x192 PWA icon
+├── icon-512.svg          # 512x512 PWA icon
+├── apple-touch-icon.svg   # 180x180 Apple touch icon
+└── browserconfig.xml     # Microsoft tile config
 ```
 
-### **Design Suggestions:**
-- **Primary**: Card with "2" and spade symbols
-- **Colors**: Yellow (#fbbf24) background, black text/symbols
-- **Style**: Poker table aesthetic with card elements
-- **Text**: "TAKE 2" or "T2" prominently displayed
+### **Design Theme:**
+- **Card Design**: Yellow background (#fbbf24) with black text
+- **Symbols**: Spade (♠) suit symbols in corners
+- **Text**: Prominent "T2" in center
+- **Style**: Authentic playing card appearance
 
-### **Current Setup:**
-- ✅ **SVG favicon** for Safari pinned tabs
-- ✅ **Manifest.json** with PWA icon specifications
-- ✅ **Meta tags** for all platforms
-- ✅ **Browser config** for Microsoft tiles
+### **Icon Features:**
+- ✅ **SVG scalable** icons for all devices
+- ✅ **PWA ready** with proper manifest
+- ✅ **Cross-platform** support (iOS, Android, Desktop)
+- ✅ **Fallback system** for older browsers
+
+### **Optional PNG Assets** (for enhanced compatibility):
+```
+public/
+├── og-image.png          # 1200x630 Open Graph image
+├── screenshot-mobile.png  # 390x844 PWA store screenshot
+└── screenshot-desktop.png # 1280x720 PWA store screenshot
+```
 
 ## 🚀 Getting Started
 
