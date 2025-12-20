@@ -1,19 +1,55 @@
 {
   "name": "TAKE 2 - Card Game",
   "short_name": "TAKE 2",
-  "description": "A fun multiplayer card game with special powers",
+  "description": "A strategic multiplayer card game with special powers, AI opponents, and achievement system",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a1a2e",
-  "theme_color": "#16213e",
+  "theme_color": "#fbbf24",
   "orientation": "any",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
     }
   ],
-  "categories": ["games", "entertainment"]
+  "categories": ["games", "entertainment", "strategy"],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
 }
 
