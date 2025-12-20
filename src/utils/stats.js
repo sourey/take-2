@@ -54,7 +54,7 @@ export const saveStats = (stats) => {
 };
 
 // Record a completed game
-export const recordGameCompletion = (gameData) => {
+export const recordGameCompletion = async (gameData) => {
   const stats = loadStats();
   const {
     playerName,
@@ -107,7 +107,21 @@ export const recordGameCompletion = (gameData) => {
     stats.gameHistory = stats.gameHistory.slice(0, 50);
   }
 
+  // Save local stats
   saveStats(stats);
+
+  // Try to sync with global MongoDB storage (async, non-blocking)
+  if (typeof window !== 'undefined') {
+    try {
+      const { syncStatsToGlobal } = await import('./mongoStorage.js');
+      syncStatsToGlobal(gameData).catch(err => {
+        console.warn('Failed to sync to global leaderboard:', err);
+      });
+    } catch (err) {
+      console.warn('MongoDB sync not available:', err);
+    }
+  }
+
   return stats;
 };
 
@@ -133,8 +147,22 @@ export const getPlayerBadge = (playerName) => {
   return currentBadge;
 };
 
-// Get global statistics
-export const getGlobalStats = () => {
+// Get global statistics (with S3 support)
+export const getGlobalStats = async () => {
+  // Try to get global stats from MongoDB first
+  if (typeof window !== 'undefined') {
+    try {
+      const { getGlobalStatsFromMongo } = await import('./mongoStorage.js');
+      const mongoStats = await getGlobalStatsFromMongo();
+      if (mongoStats && mongoStats.totalGames > 0) {
+        return mongoStats;
+      }
+    } catch (err) {
+      console.warn('MongoDB global stats not available, using local:', err);
+    }
+  }
+
+  // Fallback to local stats
   const stats = loadStats();
 
   // Calculate most wins and most losses
