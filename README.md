@@ -11,7 +11,6 @@ Take 2 is an exciting card game similar to Uno but with unique strategic element
 ### 🎲 Key Features
 - **Fast-paced gameplay** (5-40 minutes depending on card count)
 - **Strategic depth** with special card mechanics
-- **AI opponents** with adaptive difficulty
 - **Offline-capable** Progressive Web App (PWA)
 - **Achievement system** with badges and statistics
 - **Responsive design** for mobile and desktop
@@ -71,7 +70,6 @@ Be the **first player to discard all your cards**!
 
 #### **Color Changes**
 - **Ace power**: Choose any color for next player
-- **AI strategy**: Smart AI chooses colors to hurt you
 - **Visual indicator**: Active color shown in header
 
 #### **Deck Management**
@@ -87,15 +85,19 @@ Be the **first player to discard all your cards**!
 - **Multiple rounds**: Continue playing for rankings
 
 #### **Badge System**
-Earn badges based on games played and wins:
-- **🎓 Rookie**: 0 games, 0 wins
-- **🛠️ Apprentice**: 1+ games, 0 wins
-- **⚔️ Challenger**: 3+ games, 1+ wins
-- **🧠 Strategist**: 5+ games, 2+ wins
-- **🎯 Mastermind**: 10+ games, 5+ wins
-- **👑 Legend**: 15+ games, 8+ wins
-- **⭐ Mythical**: 25+ games, 15+ wins
-- **🔥 Grandmaster**: 50+ games, 30+ wins
+Earn prestigious badges based on victories (requires equal games played):
+- **🎓 Rookie**: 0 wins (Getting started)
+- **🛠️ Apprentice**: 1 win (First victory)
+- **⚔️ Challenger**: 2 wins (Rising contender)
+- **🧠 Strategist**: 3 wins (Tactical player)
+- **🎯 Tactician**: 5 wins (Strategic master)
+- **🧠 Mastermind**: 8 wins (Mental giant)
+- **🎭 Virtuoso**: 12 wins (Artistic player)
+- **👑 Legend**: 18 wins (Hall of fame)
+- **⭐ Mythical**: 25 wins (Legendary status)
+- **🔥 Grandmaster**: 35 wins (Supreme champion)
+- **💎 Immortal**: 50 wins (Unbeatable)
+- **✨ Juwade GOD**: 75 wins (Card game deity)
 
 ### 🎮 Controls & Interface
 
@@ -109,11 +111,6 @@ Earn badges based on games played and wins:
 - **Queen pairing**: Select Q first, then same-color card
 - **Visual feedback**: Selected cards highlight yellow
 - **Play button**: Appears when valid selection made
-
-#### **AI Behavior**
-- **Adaptive difficulty** based on your play history
-- **Strategic decisions**: Saves power cards, targets weak players
-- **Realistic timing**: 1.5 second delays between AI moves
 
 ### 📊 Statistics & Features
 

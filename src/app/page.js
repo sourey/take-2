@@ -194,14 +194,20 @@ export default function Home() {
       console.error("Failed to load game state:", e);
     }
 
-    // No saved state - create fresh deck
+    // No saved state - create fresh deck with better distribution
     const initialDeck = [];
-    for (let i = 0; i < colors.length; i++) {
-      for (let j = 0; j < cardNums.length; j++) {
+    // Create deck in round-robin fashion for better color distribution
+    for (let j = 0; j < cardNums.length; j++) {  // For each number (A, 2, 3, ..., K)
+      for (let i = 0; i < colors.length; i++) { // For each suit (♠, ♥️, ♦, ♣)
         const uniqueId = `${i}-${j}-${Math.random().toString(36).substr(2, 9)}`;
         initialDeck.push({ id: uniqueId, color: colors[i], num: cardNums[j] });
       }
     }
+    // Shuffle multiple times for even better distribution
+    shuffleDeck(initialDeck);
+    shuffleDeck(initialDeck);
+    shuffleDeck(initialDeck);
+    shuffleDeck(initialDeck);
     shuffleDeck(initialDeck);
     setDeck(initialDeck);
     setIsLoaded(true);
@@ -282,14 +288,18 @@ export default function Home() {
       console.error("Failed to clear game state:", e);
     }
 
-    // Create fresh deck
+    // Create fresh deck with better distribution
     const initialDeck = [];
-    for (let i = 0; i < colors.length; i++) {
-      for (let j = 0; j < cardNums.length; j++) {
+    // Create deck in round-robin fashion for better color distribution
+    for (let j = 0; j < cardNums.length; j++) {  // For each number (A, 2, 3, ..., K)
+      for (let i = 0; i < colors.length; i++) { // For each suit (♠, ♥️, ♦, ♣)
         const uniqueId = `${i}-${j}-${Math.random().toString(36).substr(2, 9)}`;
         initialDeck.push({ id: uniqueId, color: colors[i], num: cardNums[j] });
       }
     }
+    // Shuffle multiple times for even better distribution
+    shuffleDeck(initialDeck);
+    shuffleDeck(initialDeck);
     shuffleDeck(initialDeck);
 
     // Reset all state
@@ -372,14 +382,18 @@ export default function Home() {
       console.error("Failed to clear saved game:", e);
     }
     
-    // Create fresh deck
+    // Create fresh deck with better distribution
     const initialDeck = [];
-    for (let i = 0; i < colors.length; i++) {
-      for (let j = 0; j < cardNums.length; j++) {
+    // Create deck in round-robin fashion for better color distribution
+    for (let j = 0; j < cardNums.length; j++) {  // For each number (A, 2, 3, ..., K)
+      for (let i = 0; i < colors.length; i++) { // For each suit (♠, ♥️, ♦, ♣)
         const uniqueId = `${i}-${j}-${Math.random().toString(36).substr(2, 9)}`;
         initialDeck.push({ id: uniqueId, color: colors[i], num: cardNums[j] });
       }
     }
+    // Shuffle multiple times for even better distribution
+    shuffleDeck(initialDeck);
+    shuffleDeck(initialDeck);
     shuffleDeck(initialDeck);
     setDeck(initialDeck);
     
@@ -572,6 +586,7 @@ export default function Home() {
     // If draw pile is empty or doesn't have enough cards, recycle discard pile
     if (currentDrawPile.length < count && currentDiscardPile.length > 0) {
       // Shuffle the discard pile and add to draw pile
+      currentDiscardPile = currentDiscardPile.sort(() => Math.random() - 0.5);
       shuffleDeck(currentDiscardPile);
       currentDrawPile = [...currentDrawPile, ...currentDiscardPile];
       currentDiscardPile = [];

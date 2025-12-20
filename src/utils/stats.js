@@ -2,16 +2,20 @@
 const STATS_KEY = "take2-game-stats";
 const PLAYER_NAMES_KEY = "take2-player-names";
 
-// Badge levels based on performance
+// Badge levels based tightly on wins with minimum games requirement
 export const BADGE_LEVELS = [
   { name: "Rookie", minGames: 0, minWins: 0, color: "#6B7280", icon: "🎓" },
-  { name: "Apprentice", minGames: 1, minWins: 0, color: "#3B82F6", icon: "🛠️" },
-  { name: "Challenger", minGames: 3, minWins: 1, color: "#10B981", icon: "⚔️" },
-  { name: "Strategist", minGames: 5, minWins: 2, color: "#F59E0B", icon: "🧠" },
-  { name: "Mastermind", minGames: 10, minWins: 5, color: "#EF4444", icon: "🎯" },
-  { name: "Legend", minGames: 15, minWins: 8, color: "#8B5CF6", icon: "👑" },
-  { name: "Mythical", minGames: 25, minWins: 15, color: "#EC4899", icon: "⭐" },
-  { name: "Grandmaster", minGames: 50, minWins: 30, color: "#F97316", icon: "🔥" }
+  { name: "Apprentice", minGames: 1, minWins: 1, color: "#3B82F6", icon: "🛠️" },
+  { name: "Challenger", minGames: 2, minWins: 2, color: "#10B981", icon: "⚔️" },
+  { name: "Strategist", minGames: 3, minWins: 3, color: "#F59E0B", icon: "🧠" },
+  { name: "Tactician", minGames: 5, minWins: 5, color: "#8B5CF6", icon: "🎯" },
+  { name: "Mastermind", minGames: 8, minWins: 8, color: "#EF4444", icon: "🧠" },
+  { name: "Virtuoso", minGames: 12, minWins: 12, color: "#EC4899", icon: "🎭" },
+  { name: "Legend", minGames: 18, minWins: 18, color: "#F97316", icon: "👑" },
+  { name: "Mythical", minGames: 25, minWins: 25, color: "#06B6D4", icon: "⭐" },
+  { name: "Grandmaster", minGames: 35, minWins: 35, color: "#DC2626", icon: "🔥" },
+  { name: "Immortal", minGames: 50, minWins: 50, color: "#7C3AED", icon: "💎" },
+  { name: "Juwade GOD", minGames: 75, minWins: 75, color: "#F59E0B", icon: "✨" }
 ];
 
 // Initialize default stats
