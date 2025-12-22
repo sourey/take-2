@@ -142,10 +142,15 @@ export const getPlayerBadge = (playerName) => {
     return BADGE_LEVELS[0]; // Rookie
   }
 
+  return getPlayerBadgeFromStats(playerStat.games, playerStat.wins);
+};
+
+// Get player badge level from stats (for database stats)
+export const getPlayerBadgeFromStats = (games, wins) => {
   // Find the highest badge the player qualifies for
   let currentBadge = BADGE_LEVELS[0];
   for (const badge of BADGE_LEVELS) {
-    if (playerStat.games >= badge.minGames && playerStat.wins >= badge.minWins) {
+    if (games >= badge.minGames && wins >= badge.minWins) {
       currentBadge = badge;
     } else {
       break; // Badges are in order, so we can stop here
@@ -202,7 +207,21 @@ export const getGlobalStats = async () => {
 };
 
 // Get player statistics
-export const getPlayerStats = (playerName) => {
+export const getPlayerStats = (playerName, user = null) => {
+  // If user is authenticated and has database stats, use those
+  if (user && user.stats) {
+    const userStats = user.stats;
+    return {
+      games: userStats.games || 0,
+      wins: userStats.wins || 0,
+      losses: userStats.losses || 0,
+      bestTime: userStats.bestTime || Infinity,
+      winRate: userStats.games > 0 ? ((userStats.wins / userStats.games) * 100).toFixed(1) : 0,
+      badge: getPlayerBadgeFromStats(userStats.games || 0, userStats.wins || 0)
+    };
+  }
+
+  // Fallback to localStorage stats
   const stats = loadStats();
   const playerStat = stats.playerStats[playerName];
 

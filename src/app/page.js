@@ -75,7 +75,7 @@ const sortCardsByColor = (cards) => {
  
 const STORAGE_KEY = "take2-game-state";
 const HIGH_SCORE_KEY = "take2-high-score";
-const GAME_VERSION = "v1.2";
+const GAME_VERSION = "v1.3";
 
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
@@ -176,6 +176,15 @@ export default function Home() {
       if (user) {
         setCurrentUser(user);
         setPlayerName(user.displayName || user.username);
+
+        // Refresh user data from server to get latest stats
+        refreshUserData().then(updatedUser => {
+          if (updatedUser) {
+            setCurrentUser(updatedUser);
+          }
+        }).catch(err => {
+          console.warn('Failed to refresh user data:', err);
+        });
       }
     }
 
@@ -194,10 +203,10 @@ export default function Home() {
   // Load stats when player name changes or component mounts
   useEffect(() => {
     if (playerName) {
-      setPlayerStats(getPlayerStats(playerName));
+      setPlayerStats(getPlayerStats(playerName, currentUser));
     }
     setGlobalStats(getGlobalStats());
-  }, [playerName]);
+  }, [playerName, currentUser]);
 
   // Initialize game - load from storage or create new deck
   useEffect(() => {
@@ -1160,7 +1169,7 @@ export default function Home() {
                     savePlayerName(playerName);
 
                     // Update displayed stats and player names
-                    setPlayerStats(getPlayerStats(playerName));
+                    setPlayerStats(getPlayerStats(playerName, currentUser));
                     setGlobalStats(getGlobalStats());
                     setSavedPlayerNames(getPlayerNames());
 
@@ -2875,7 +2884,7 @@ export default function Home() {
         onSuccess={(user) => {
           setCurrentUser(user);
           setPlayerName(user.displayName || user.username);
-          setPlayerStats(getPlayerStats(user.username));
+          setPlayerStats(getPlayerStats(user.username, user));
         }}
       />
 
