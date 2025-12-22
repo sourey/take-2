@@ -1,4 +1,6 @@
-const CACHE_NAME = 'take2-v1.2';
+// Cache version - update this on each deployment
+const CACHE_VERSION = '1.6';
+const CACHE_NAME = `take2-v${CACHE_VERSION}`;
 
 // Assets to cache for offline use
 const ASSETS_TO_CACHE = [

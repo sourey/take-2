@@ -75,7 +75,7 @@ const sortCardsByColor = (cards) => {
  
 const STORAGE_KEY = "take2-game-state";
 const HIGH_SCORE_KEY = "take2-high-score";
-const GAME_VERSION = "v1.2";
+const GAME_VERSION = "v1.3";
 
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
@@ -108,6 +108,7 @@ export default function Home() {
   const [skipActive, setSkipActive] = useState(false); // Track if a skip is pending
   const [deckRecycled, setDeckRecycled] = useState(false); // Show deck recycled indicator
   const [qPairCard, setQPairCard] = useState(null); // Track Q pair secondary card for dual matching
+  const [gameSpeed, setGameSpeed] = useState(1); // Speed multiplier: 1 = normal, 2 = 2x, 4 = 4x
 
   // Audio state
   const [audioEnabled, setAudioEnabledState] = useState(true);
@@ -156,12 +157,34 @@ export default function Home() {
     // Initialize audio system
     initAudio();
 
+    // Check for updates when online
+    const checkUpdates = () => checkForUpdates();
+    checkUpdates(); // Check immediately on load
+
+    // Check for updates every 5 minutes when online
+    const updateInterval = setInterval(() => {
+      if (navigator.onLine) {
+        checkForUpdates();
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(updateInterval);
+
     // Initialize auth - check if user is logged in
     if (isAuthenticated()) {
       const user = getUser();
       if (user) {
         setCurrentUser(user);
         setPlayerName(user.displayName || user.username);
+
+        // Refresh user data from server to get latest stats
+        refreshUserData().then(updatedUser => {
+          if (updatedUser) {
+            setCurrentUser(updatedUser);
+          }
+        }).catch(err => {
+          console.warn('Failed to refresh user data:', err);
+        });
       }
     }
 
@@ -180,10 +203,10 @@ export default function Home() {
   // Load stats when player name changes or component mounts
   useEffect(() => {
     if (playerName) {
-      setPlayerStats(getPlayerStats(playerName));
+      setPlayerStats(getPlayerStats(playerName, currentUser));
     }
     setGlobalStats(getGlobalStats());
-  }, [playerName]);
+  }, [playerName, currentUser]);
 
   // Initialize game - load from storage or create new deck
   useEffect(() => {
@@ -677,7 +700,47 @@ export default function Home() {
     setAudioEnabledState(newState);
     setAudioEnabled(newState);
   };
-  
+
+  const toggleSpeed = () => {
+    setGameSpeed(prev => {
+      if (prev === 1) return 2;
+      if (prev === 2) return 4;
+      return 1; // 4 -> 1 (back to normal)
+    });
+  };
+
+  // Check for asset updates when online
+  const checkForUpdates = async () => {
+    if (!navigator.onLine) return;
+
+    try {
+      const response = await fetch('/version-manifest.json', {
+        cache: 'no-cache',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+
+      if (response.ok) {
+        const manifest = await response.json();
+        const currentVersion = localStorage.getItem('app-version') || '1.0';
+
+        if (manifest.version !== currentVersion) {
+          console.log(`New version available: ${manifest.version} (current: ${currentVersion})`);
+
+          // Show update prompt
+          setMessage('🎉 New version available! Click to update.');
+          setTimeout(() => {
+            if (confirm('A new version is available. Reload to update?')) {
+              localStorage.setItem('app-version', manifest.version);
+              window.location.reload();
+            }
+          }, 1000);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to check for updates:', e);
+    }
+  };
+
   // Helper to get computer name
   const getComputerName = (index) => computerNames[index] || `Bot ${index + 1}`;
 
@@ -1106,7 +1169,7 @@ export default function Home() {
                     savePlayerName(playerName);
 
                     // Update displayed stats and player names
-                    setPlayerStats(getPlayerStats(playerName));
+                    setPlayerStats(getPlayerStats(playerName, currentUser));
                     setGlobalStats(getGlobalStats());
                     setSavedPlayerNames(getPlayerNames());
 
@@ -1511,7 +1574,7 @@ export default function Home() {
             setTurn(getNextActiveTurn(turn));
             setMessage(`${computerName} drew a card.`);
         }
-      }, 1500); // Slightly faster for better game flow
+      }, 1500 / gameSpeed); // Adjust speed based on gameSpeed multiplier
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2145,6 +2208,17 @@ export default function Home() {
                   {audioEnabled ? "🔊" : "🔇"}
                 </button>
                 <button
+                  onClick={toggleSpeed}
+                  className={`px-2 py-1 rounded-full font-bold text-xs transition-colors shadow-lg border-2 border-white/20 ${
+                    gameSpeed === 1 ? "bg-blue-500 text-white" :
+                    gameSpeed === 2 ? "bg-orange-500 text-white" :
+                    "bg-red-500 text-white"
+                  }`}
+                  title={`Game Speed: ${gameSpeed}x`}
+                >
+                  {gameSpeed}x
+                </button>
+                <button
                   onClick={toggleTheme}
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg border-2 border-white/20 text-sm ${
                     isDarkTheme ? "bg-gray-800 text-white" : "bg-yellow-400 text-black"
@@ -2198,6 +2272,17 @@ export default function Home() {
                   className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-full shadow-lg border-2 border-red-400 transition-colors"
                 >
                   NEW GAME
+                </button>
+                <button
+                  onClick={toggleSpeed}
+                  className={`px-3 py-2 rounded-full font-bold text-sm transition-colors shadow-lg border-2 border-white/20 ${
+                    gameSpeed === 1 ? "bg-blue-500 text-white" :
+                    gameSpeed === 2 ? "bg-orange-500 text-white" :
+                    "bg-red-500 text-white"
+                  }`}
+                  title={`Game Speed: ${gameSpeed}x`}
+                >
+                  {gameSpeed}x Speed
                 </button>
                 <GameRules isDarkTheme={isDarkTheme} />
                 <button
@@ -2799,7 +2884,7 @@ export default function Home() {
         onSuccess={(user) => {
           setCurrentUser(user);
           setPlayerName(user.displayName || user.username);
-          setPlayerStats(getPlayerStats(user.username));
+          setPlayerStats(getPlayerStats(user.username, user));
         }}
       />
 

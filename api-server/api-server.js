@@ -407,6 +407,38 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+// Admin: Reset all data (protected by secret key)
+app.post('/api/admin/reset', async (req, res) => {
+  try {
+    const { secret } = req.body;
+    const ADMIN_SECRET = process.env.ADMIN_SECRET || 'take2-reset-2024';
+    
+    if (secret !== ADMIN_SECRET) {
+      return res.status(403).json({ error: 'Invalid secret' });
+    }
+
+    // Delete all data from collections
+    await Game.deleteMany({});
+    await User.deleteMany({});
+    await GlobalStats.deleteMany({});
+
+    console.log('Database reset by admin');
+    
+    res.json({ 
+      success: true, 
+      message: 'All data has been reset',
+      deleted: {
+        games: 'all',
+        users: 'all', 
+        globalStats: 'all'
+      }
+    });
+  } catch (error) {
+    console.error('Error resetting database:', error);
+    res.status(500).json({ error: 'Failed to reset database' });
+  }
+});
+
 // Helper functions
 
 async function updateGlobalStats() {
