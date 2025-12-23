@@ -21,6 +21,14 @@ export const GameRules = ({ isDarkTheme }) => {
         {isOpen ? "✕" : "📋"}
       </button>
 
+      {/* Overlay for mobile */}
+      {isOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
       {/* Rules panel - hidden on mobile unless toggled, always visible on desktop */}
       <div
         className={`fixed md:absolute right-0 md:right-4 top-0 md:top-1/2 md:transform md:-translate-y-1/2 

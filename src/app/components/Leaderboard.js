@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getLeaderboard } from '@/utils/mongoStorage';
 import { formatDuration } from '@/utils/stats';
 
-export const Leaderboard = ({ onClose }) => {
+export const Leaderboard = ({ onClose, onSelectProfile }) => {
   const [leaderboard, setLeaderboard] = useState(null);
   const [activeTab, setActiveTab] = useState('wins');
   const [loading, setLoading] = useState(true);
@@ -45,7 +45,8 @@ export const Leaderboard = ({ onClose }) => {
         {players.map((player, index) => (
           <div
             key={player.name}
-            className="flex items-center justify-between bg-slate-600/30 rounded-lg p-3 hover:bg-slate-600/40 transition-colors"
+            className="flex items-center justify-between bg-slate-600/30 rounded-lg p-3 hover:bg-slate-600/40 transition-colors cursor-pointer group"
+            onClick={() => onSelectProfile && onSelectProfile(player.name)}
           >
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
@@ -56,13 +57,18 @@ export const Leaderboard = ({ onClose }) => {
               }`}>
                 {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
               </div>
-              <div>
-                <div className="text-white font-bold">{player.name}</div>
-                <div className="text-white/60 text-xs">
-                  {metric === 'wins' && `${player.wins} wins • ${player.games} games`}
-                  {metric === 'games' && `${player.games} games • ${player.winRate}% win rate`}
-                  {metric === 'winRate' && `${player.winRate}% win rate • ${player.games} games`}
-                  {metric === 'bestTime' && `${formatDuration(player.bestTime)} • ${player.games} games`}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-lg">
+                  {player.avatar || '👤'}
+                </div>
+                <div>
+                  <div className="text-white font-bold group-hover:text-yellow-400 transition-colors">{player.name}</div>
+                  <div className="text-white/60 text-xs">
+                    {metric === 'wins' && `${player.wins} wins • ${player.games} games`}
+                    {metric === 'games' && `${player.games} games • ${player.winRate}% win rate`}
+                    {metric === 'winRate' && `${player.winRate}% win rate • ${player.games} games`}
+                    {metric === 'bestTime' && `${formatDuration(player.bestTime)} • ${player.games} games`}
+                  </div>
                 </div>
               </div>
             </div>
@@ -99,9 +105,21 @@ export const Leaderboard = ({ onClose }) => {
     );
   }
 
+  const handleOutsideClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-600 relative max-h-[80vh] overflow-hidden">
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      onClick={handleOutsideClick}
+    >
+      <div 
+        className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-600 relative max-h-[90dvh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close button */}
         <button
           onClick={onClose}

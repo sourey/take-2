@@ -160,22 +160,8 @@ export const getPlayerBadgeFromStats = (games, wins) => {
   return currentBadge;
 };
 
-// Get global statistics (with S3 support)
-export const getGlobalStats = async () => {
-  // Try to get global stats from MongoDB first
-  if (typeof window !== 'undefined') {
-    try {
-      const { getGlobalStatsFromMongo } = await import('./mongoStorage.js');
-      const mongoStats = await getGlobalStatsFromMongo();
-      if (mongoStats && mongoStats.totalGames > 0) {
-        return mongoStats;
-      }
-    } catch (err) {
-      console.warn('MongoDB global stats not available, using local:', err);
-    }
-  }
-
-  // Fallback to local stats
+// Helper to get local global stats
+const getLocalGlobalStats = () => {
   const stats = loadStats();
 
   // Calculate most wins and most losses
@@ -206,18 +192,61 @@ export const getGlobalStats = async () => {
   };
 };
 
+// Get global statistics (with MongoDB support)
+export const getGlobalStats = async () => {
+  // Try to get global stats from MongoDB first
+  if (typeof window !== 'undefined') {
+    try {
+      const { getGlobalStatsFromMongo } = await import('./mongoStorage.js');
+      const mongoStats = await getGlobalStatsFromMongo();
+      if (mongoStats && mongoStats.totalGames > 0) {
+        return mongoStats;
+      }
+    } catch (err) {
+      console.warn('MongoDB global stats not available, using local:', err);
+    }
+  }
+
+  // Fallback to local stats
+  return getLocalGlobalStats();
+};
+
+// Achievement definitions
+export const ACHIEVEMENTS = [
+  { id: 'first_win', name: 'First Victory', icon: '🏆', description: 'Win your first game', condition: (stats) => stats.wins >= 1 },
+  { id: 'centurion', name: 'Centurion', icon: '💯', description: 'Play 100 games', condition: (stats) => stats.games >= 100 },
+  { id: 'speed_demon', name: 'Speed Demon', icon: '⚡', description: 'Win a game in under 2 minutes', condition: (stats) => stats.bestTime < 120000 && stats.bestTime > 0 },
+  { id: 'streak_3', name: 'Winning Streak', icon: '🔥', description: 'Win 3 games in a row', condition: (stats, history) => {
+    if (!history || history.length < 3) return false;
+    return history.slice(0, 3).every(game => game.isWin);
+  }},
+  { id: 'marathon', name: 'Marathoner', icon: '🏔️', description: 'Play an Epic game (13 cards)', condition: (stats, history) => history && history.some(game => game.gameCardNum === 13) },
+  { id: 'socialite', name: 'Socialite', icon: '👥', description: 'Play with 4 players', condition: (stats, history) => history && history.some(game => game.numPlayers === 4) },
+];
+
+// Get earned achievements from stats and history
+export const getEarnedAchievements = (stats, history = []) => {
+  return ACHIEVEMENTS.filter(achievement => achievement.condition(stats, history));
+};
+
 // Get player statistics
 export const getPlayerStats = (playerName, user = null) => {
   // If user is authenticated and has database stats, use those
   if (user && user.stats) {
     const userStats = user.stats;
-    return {
+    const pStats = {
       games: userStats.games || 0,
       wins: userStats.wins || 0,
       losses: userStats.losses || 0,
       bestTime: userStats.bestTime || Infinity,
       winRate: userStats.games > 0 ? ((userStats.wins / userStats.games) * 100).toFixed(1) : 0,
       badge: getPlayerBadgeFromStats(userStats.games || 0, userStats.wins || 0)
+    };
+    
+    return {
+      ...pStats,
+      achievements: user.achievements || getEarnedAchievements(pStats, user.gameHistory || []),
+      avatar: user.avatar || null
     };
   }
 
@@ -232,17 +261,25 @@ export const getPlayerStats = (playerName, user = null) => {
       losses: 0,
       bestTime: 0,
       winRate: 0,
-      badge: BADGE_LEVELS[0]
+      badge: BADGE_LEVELS[0],
+      achievements: [],
+      avatar: null
     };
   }
 
-  return {
+  const pStats = {
     games: playerStat.games,
     wins: playerStat.wins,
     losses: playerStat.losses,
     bestTime: playerStat.bestTime,
     winRate: playerStat.games > 0 ? (playerStat.wins / playerStat.games * 100).toFixed(1) : 0,
     badge: getPlayerBadge(playerName)
+  };
+
+  return {
+    ...pStats,
+    achievements: getEarnedAchievements(pStats, stats.gameHistory?.filter(g => g.playerName === playerName) || []),
+    avatar: null
   };
 };
 

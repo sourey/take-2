@@ -132,8 +132,9 @@ export const getProfile = async () => {
     }
     return { success: false, error: 'Failed to get profile' };
   } catch (error) {
-    // Token might be expired
-    if (error.message.includes('Authentication')) {
+    console.error('Profile fetch error:', error);
+    // Token is only cleared if the server explicitly says it's unauthorized
+    if (error.message === 'Authentication required' || error.message.includes('token')) {
       clearAuth();
     }
     return { success: false, error: error.message };
@@ -141,11 +142,11 @@ export const getProfile = async () => {
 };
 
 // Update user profile
-export const updateProfile = async (displayName) => {
+export const updateProfile = async (displayName, avatar) => {
   try {
     const data = await authRequest('/auth/profile', {
       method: 'PUT',
-      body: JSON.stringify({ displayName }),
+      body: JSON.stringify({ displayName, avatar }),
     });
 
     if (data.success && data.user) {

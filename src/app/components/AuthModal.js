@@ -49,13 +49,23 @@ export const AuthModal = ({ isOpen, onClose, onSuccess }) => {
 
   if (!isOpen) return null;
 
+  const handleOutsideClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+    <div 
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      onClick={handleOutsideClick}
+    >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-600 relative"
+        className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-600 relative max-h-[95dvh] overflow-y-auto overflow-x-hidden scrollbar-hide"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
         <button

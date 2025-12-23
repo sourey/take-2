@@ -6,6 +6,7 @@ import { isValidMove, getCardEffect, checkWinCondition, isPowerCard } from "@/ut
 import { Card, preloadCards } from "./components/Card";
 import { GameRules } from "./components/GameRules"; // Import GameRules component
 import { Leaderboard } from "./components/Leaderboard";
+import { Profile } from "./components/Profile";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import {
@@ -75,7 +76,7 @@ const sortCardsByColor = (cards) => {
  
 const STORAGE_KEY = "take2-game-state";
 const HIGH_SCORE_KEY = "take2-high-score";
-const GAME_VERSION = "v1.3";
+const GAME_VERSION = "v1.4";
 
 export default function Home() {
   const [deck, setDeck] = useState([]); // Initial full deck for setup
@@ -122,6 +123,7 @@ export default function Home() {
   const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState(null); // { user, stats, isOwn }
   
   // Auth state
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -147,118 +149,123 @@ export default function Home() {
   // Ref for the play area (drop zone)
   const playAreaRef = useRef(null);
 
-  // Preload card assets on mount
+  // Main Initialization - runs once on mount
   useEffect(() => {
+    // 1. Preload assets
     preloadCards().then(() => {
       console.log("Card assets preloaded and cached");
       setAssetsLoaded(true);
     });
 
-    // Initialize audio system
+    // 2. Initialize audio
     initAudio();
 
-    // Check for updates when online
+    // 3. Setup update checking
     const checkUpdates = () => checkForUpdates();
-    checkUpdates(); // Check immediately on load
-
-    // Check for updates every 5 minutes when online
+    checkUpdates();
     const updateInterval = setInterval(() => {
-      if (navigator.onLine) {
-        checkForUpdates();
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+      if (navigator.onLine) checkForUpdates();
+    }, 5 * 60 * 1000);
 
-    return () => clearInterval(updateInterval);
-
-    // Initialize auth - check if user is logged in
-    if (isAuthenticated()) {
-      const user = getUser();
-      if (user) {
-        setCurrentUser(user);
-        setPlayerName(user.displayName || user.username);
-
-        // Refresh user data from server to get latest stats
-        refreshUserData().then(updatedUser => {
-          if (updatedUser) {
-            setCurrentUser(updatedUser);
-          }
-        }).catch(err => {
-          console.warn('Failed to refresh user data:', err);
-        });
-      }
-    }
-
-    // Register service worker for offline support
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then((registration) => {
-          console.log('Service Worker registered:', registration.scope);
-        })
-        .catch((error) => {
-          console.log('Service Worker registration failed:', error);
-        });
-    }
-  }, []);
-
-  // Load stats when player name changes or component mounts
-  useEffect(() => {
-    if (playerName) {
-      setPlayerStats(getPlayerStats(playerName, currentUser));
-    }
-    setGlobalStats(getGlobalStats());
-  }, [playerName, currentUser]);
-
-  // Initialize game - load from storage or create new deck
-  useEffect(() => {
-    // Always load high score (persistent across games)
+    // 4. Load High Score
     try {
       const savedHighScore = localStorage.getItem(HIGH_SCORE_KEY);
-      if (savedHighScore) {
-        setHighScore(JSON.parse(savedHighScore));
-      }
+      if (savedHighScore) setHighScore(JSON.parse(savedHighScore));
     } catch (e) {
       console.error("Failed to load high score:", e);
     }
 
-    // Load initial global stats and player names
-    setGlobalStats(getGlobalStats());
-    setSavedPlayerNames(getPlayerNames());
-    
-    // Check for saved game state - don't auto-load, ask user first
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const state = JSON.parse(saved);
-        // Only show resume prompt if there's an active game (not finished)
-        if (state.gameStart && !state.gameOver) {
-          setSavedGameData(state);
-          setShowResumePrompt(true);
-          setIsLoaded(true);
-          return;
+    // 5. Initialize Auth and Player State
+    const initAuthAndState = async () => {
+      let initialPlayerName = "";
+      let initialUser = null;
+
+      if (isAuthenticated()) {
+        const user = getUser();
+        if (user) {
+          initialUser = user;
+          initialPlayerName = user.displayName || user.username;
+          setCurrentUser(user);
+          setPlayerName(initialPlayerName);
+
+          // Refresh user data in background
+          refreshUserData().then(updatedUser => {
+            if (updatedUser) setCurrentUser(updatedUser);
+          }).catch(err => console.warn('Background auth refresh failed:', err));
         }
       }
-    } catch (e) {
-      console.error("Failed to load game state:", e);
+
+      // 6. Load Game State (if any)
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const state = JSON.parse(saved);
+          if (state.gameStart && !state.gameOver) {
+            setSavedGameData(state);
+            setShowResumePrompt(true);
+            // If resuming, we'll use the name from the saved game later
+          } else if (!initialPlayerName && state.playerName) {
+            // Use last used name if not logged in
+            setPlayerName(state.playerName);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load game state:", e);
+      }
+
+      // 7. Load Global Stats & Player Names
+      setSavedPlayerNames(getPlayerNames());
+      const stats = await getGlobalStats();
+      setGlobalStats(stats);
+      
+      setIsLoaded(true);
+    };
+
+    initAuthAndState();
+
+    // 8. Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
     }
 
-    // No saved state - create fresh deck with better distribution
-    const initialDeck = [];
-    // Create deck in round-robin fashion for better color distribution
-    for (let j = 0; j < cardNums.length; j++) {  // For each number (A, 2, 3, ..., K)
-      for (let i = 0; i < colors.length; i++) { // For each suit (♠, ♥️, ♦, ♣)
-        const uniqueId = `${i}-${j}-${Math.random().toString(36).substr(2, 9)}`;
-        initialDeck.push({ id: uniqueId, color: colors[i], num: cardNums[j] });
-      }
-    }
-    // Shuffle multiple times for even better distribution
-    shuffleDeck(initialDeck);
-    shuffleDeck(initialDeck);
-    shuffleDeck(initialDeck);
-    shuffleDeck(initialDeck);
-    shuffleDeck(initialDeck);
-    setDeck(initialDeck);
-    setIsLoaded(true);
+    return () => clearInterval(updateInterval);
   }, []);
+
+  // Sort cards by color then by number for better organization
+  const sortCardsByColor = (cards) => {
+    const colorOrder = { "♠": 0, "♣": 1, "♥️": 2, "♦": 3 };
+    const numOrder = { "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13 };
+    
+    return [...cards].sort((a, b) => {
+      const colorDiff = colorOrder[a.color] - colorOrder[b.color];
+      if (colorDiff !== 0) return colorDiff;
+      return numOrder[a.num] - numOrder[b.num];
+    });
+  };
+
+  // Load stats when player name changes or component mounts
+  useEffect(() => {
+    if (isLoaded && playerName) {
+      setPlayerStats(getPlayerStats(playerName, currentUser));
+    }
+  }, [playerName, currentUser, isLoaded]);
+
+  // Initialize fresh deck (only if not resuming)
+  useEffect(() => {
+    if (isLoaded && !gameStart && !showResumePrompt && deck.length === 0) {
+      const initialDeck = [];
+      for (let j = 0; j < cardNums.length; j++) {
+        for (let i = 0; i < colors.length; i++) {
+          const uniqueId = `${i}-${j}-${Math.random().toString(36).substr(2, 9)}`;
+          initialDeck.push({ id: uniqueId, color: colors[i], num: cardNums[j] });
+        }
+      }
+      shuffleDeck(initialDeck);
+      shuffleDeck(initialDeck);
+      shuffleDeck(initialDeck);
+      setDeck(initialDeck);
+    }
+  }, [isLoaded, gameStart, showResumePrompt, deck.length]);
 
   // Save game state to localStorage whenever it changes
   useEffect(() => {
@@ -527,6 +534,33 @@ export default function Home() {
   
   // Count active players
   const activePlayerCount = numPlayers - rankings.length;
+
+  const handleSelectProfile = async (name) => {
+    // If it's the current user, just show their profile
+    if (currentUser && (name === currentUser.username || name === currentUser.displayName)) {
+      setViewingProfile({ 
+        user: currentUser, 
+        stats: playerStats, 
+        isOwn: true 
+      });
+      return;
+    }
+
+    // Otherwise fetch from server
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_MONGO_API_URL || 'http://localhost:3001/api'}/users/${name}`);
+      const data = await response.json();
+      if (data.user) {
+        setViewingProfile({ 
+          user: data.user, 
+          stats: getPlayerStats(data.user.username, data.user), 
+          isOwn: false 
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+    }
+  };
 
   const startGame = () => {
     if (!!playerName && !!gameCardNum && numPlayers >= 2) {
@@ -1674,7 +1708,7 @@ export default function Home() {
 
   return (
     <div 
-        className={`min-h-screen overflow-hidden relative`}
+        className={`h-[100dvh] w-full overflow-hidden relative flex flex-col`}
     >
       {/* Background Texture */}
       <div className={`absolute inset-0 z-0 ${
@@ -1688,11 +1722,15 @@ export default function Home() {
 
       {/* Resume Game Prompt */}
       {showResumePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => setShowResumePrompt(false)}
+        >
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-600"
+            onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">Welcome Back!</h2>
             <p className="text-slate-300 text-center mb-6 text-sm sm:text-base">
@@ -1740,11 +1778,11 @@ export default function Home() {
       )}
 
       {/* Content Overlay */}
-      <div className="relative z-10 w-full h-full">
+      <div className="relative z-10 w-full h-full flex flex-col overflow-hidden">
       {!gameStart ? (
-        <div className="flex flex-col justify-center items-center min-h-screen px-4 gap-2 sm:gap-4 py-4 overflow-y-auto">
+        <div className="flex flex-col justify-center items-center h-full w-full px-4 gap-4 sm:gap-4 py-4 overflow-y-auto overflow-x-hidden scrollbar-hide">
           {/* Creative Game Title */}
-          <div className="relative mb-4 sm:mb-6 md:mb-8">
+          <div className="relative mb-2 sm:mb-6 md:mb-8 flex-shrink-0">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white drop-shadow-2xl relative z-10">
               <span className="relative inline-block">
                 <span className="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 bg-clip-text text-transparent animate-pulse">
@@ -1785,16 +1823,23 @@ export default function Home() {
             <div className="absolute -top-2 right-1/4 text-yellow-300 animate-ping" style={{animationDelay: '1s'}}>⭐</div>
             <div className="absolute -bottom-4 left-1/3 text-yellow-300 animate-ping" style={{animationDelay: '2s'}}>✨</div>
           </div>
-          <div className="flex flex-col gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6 md:mb-8 text-black w-full max-w-xs mt-8 sm:mt-0">
+          <div className="flex flex-col gap-1.5 sm:gap-3 md:gap-4 mb-2 sm:mb-6 md:mb-8 text-black w-full max-w-xs mt-2 sm:mt-0 flex-shrink-0">
             {/* Auth Section */}
-            {currentUser ? (
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg p-3 border border-green-500/30 mb-2">
+            {!isLoaded ? (
+              <div className="w-full h-10 bg-slate-700/20 animate-pulse rounded-lg mb-1 sm:mb-2" />
+            ) : currentUser ? (
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg p-2 sm:p-3 border border-green-500/30 mb-1 sm:mb-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">👤</span>
+                  <div 
+                    className="flex items-center gap-2 cursor-pointer group"
+                    onClick={() => handleSelectProfile(currentUser.username)}
+                  >
+                    <span className="text-base sm:text-lg group-hover:scale-125 transition-transform">
+                      {currentUser.avatar || '👤'}
+                    </span>
                     <div>
-                      <div className="text-white font-bold text-sm">{currentUser.displayName || currentUser.username}</div>
-                      <div className="text-white/60 text-xs">
+                      <div className="text-white font-bold text-xs sm:text-sm group-hover:text-green-400 transition-colors">{currentUser.displayName || currentUser.username}</div>
+                      <div className="text-white/60 text-[10px] sm:text-xs">
                         {currentUser.stats?.wins || 0} wins • {currentUser.stats?.games || 0} games
                       </div>
                     </div>
@@ -1805,7 +1850,7 @@ export default function Home() {
                       setCurrentUser(null);
                       setPlayerName('');
                     }}
-                    className="text-white/60 hover:text-white text-xs underline"
+                    className="text-white/60 hover:text-white text-[10px] sm:text-xs underline"
                   >
                     Logout
                   </button>
@@ -1814,29 +1859,29 @@ export default function Home() {
             ) : (
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-400 hover:to-purple-400 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg mb-2 text-sm"
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-400 hover:to-purple-400 text-white font-bold py-3 sm:py-2 px-4 rounded-lg transition-all transform hover:scale-105 shadow-lg mb-1 sm:mb-2 text-xs sm:text-sm"
               >
                 🔐 Login / Register
               </button>
             )}
 
             {/* Player Name Input with Dropdown */}
-            <div className="relative">
+            {!currentUser && <div className="relative">
               <input
                 type="text"
                 placeholder={currentUser ? "Playing as..." : "Enter your name"}
                 value={playerName}
                 onChange={handlePlayerNameChange}
                 disabled={!!currentUser}
-                className={`w-full px-4 py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-base mb-4 sm:mb-0 ${currentUser ? 'opacity-70 cursor-not-allowed' : ''}`}
+                className={`w-full px-3 py-2 sm:px-4 sm:py-3 border-2 border-yellow-500 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white/90 text-sm sm:text-base mb-2 sm:mb-0 ${currentUser ? 'opacity-70 cursor-not-allowed' : ''}`}
               />
               {!currentUser && savedPlayerNames.length > 0 && (
-              <div className="text-white/70 text-xs text-center mt-4 mb-4">
+              <div className="text-white/70 text-[10px] text-center mt-1 sm:mt-4 mb-1 sm:mb-4">
                 Or select from your previous player
               </div>
             )}
               {!currentUser && (
-              <div className="mt-2">
+              <div className="mt-1 sm:mt-2">
                 <select
                   value=""
                   onChange={(e) => {
@@ -1844,7 +1889,7 @@ export default function Home() {
                       setPlayerName(e.target.value);
                     }
                   }}
-                  className="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg bg-white/90 text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
+                  className="w-full px-3 py-1.5 sm:px-4 sm:py-2 border-2 border-yellow-400 rounded-lg bg-white/90 text-sm sm:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
                 >
                   <option value="" disabled>Select player name...</option>
                   {savedPlayerNames.map((name, index) => (
@@ -1855,13 +1900,13 @@ export default function Home() {
                 </select>
               </div>
               )}
-            </div>
+            </div>}
             
             {/* Number of Cards Selector */}
             <div className="w-full">
               {/* Mobile: Ultra-compact horizontal layout */}
               <div className="block sm:hidden">
-                <div className="flex gap-4 mb-2 overflow-x-auto pb-1 mt-4 sm:mt-0">
+                <div className="flex gap-2 mb-1 overflow-x-auto pb-1 mt-2 sm:mt-0 scrollbar-hide justify-center">
                   {[
                     { cards: 5, short: "Fast", emoji: "⚡" },
                     { cards: 7, short: "Normal", emoji: "🎯" },
@@ -1871,15 +1916,15 @@ export default function Home() {
                     <button
                       key={cards}
                       onClick={() => setGameCardNum(cards)}
-                      className={`flex-shrink-0 w-[65px] h-[50px] p-1 rounded-md font-bold transition-all transform hover:scale-105 shadow-md border-2 flex flex-col items-center justify-center ${
+                      className={`flex-shrink-0 w-[55px] h-[45px] p-1 rounded-md font-bold transition-all transform hover:scale-105 shadow-md border-2 flex flex-col items-center justify-center ${
                         gameCardNum === cards
                           ? 'bg-yellow-500 text-black border-yellow-400 shadow-yellow-500/50'
                           : 'bg-white/90 text-gray-700 border-gray-300 hover:border-yellow-400'
                       }`}
                     >
-                      <div className="text-sm leading-none">{emoji}</div>
-                      <div className="text-[10px] font-bold leading-tight mt-0.5">{short}</div>
-                      <div className="text-[9px] font-normal leading-none">{cards}</div>
+                      <div className="text-xs leading-none">{emoji}</div>
+                      <div className="text-[9px] font-bold leading-tight mt-0.5">{short}</div>
+                      <div className="text-[8px] font-normal leading-none">{cards}</div>
                     </button>
                   ))}
                 </div>
@@ -1926,12 +1971,12 @@ export default function Home() {
             </div>
             {/* Number of Players Selector */}
             <div className="w-full">
-              <div className="flex justify-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+              <div className="flex justify-center gap-1 sm:gap-2 mb-1.5 sm:mb-3">
                 {[2, 3, 4].map((num) => (
                   <button
                     key={num}
                     onClick={() => setNumPlayers(num)}
-                    className={`px-3 py-2 sm:px-4 sm:py-3 rounded-md sm:rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg border-2 text-sm sm:text-base ${
+                    className={`px-3 py-1.5 sm:px-4 sm:py-3 rounded-md sm:rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg border-2 text-xs sm:text-base ${
                       numPlayers === num
                         ? 'bg-yellow-500 text-black border-yellow-400 shadow-yellow-500/50'
                         : 'bg-white/90 text-gray-700 border-gray-300 hover:border-yellow-400'
@@ -1943,8 +1988,8 @@ export default function Home() {
                 ))}
               </div>
               <div className="text-center">
-                <div className="inline-flex items-center gap-1 bg-slate-600/30 rounded-md px-2 py-1 sm:px-4 sm:py-2">
-                  <span className="text-white text-[10px] sm:text-sm">
+                <div className="inline-flex items-center gap-1 bg-slate-600/30 rounded-md px-2 py-0.5 sm:px-4 sm:py-2">
+                  <span className="text-white text-[9px] sm:text-sm">
                     {numPlayers === 2 && '🤖 1 AI'}
                     {numPlayers === 3 && '🤖🤖 2 AI'}
                     {numPlayers === 4 && '🤖🤖🤖 3 AI'}
@@ -1953,41 +1998,24 @@ export default function Home() {
               </div>
             </div>
           </div>
-          {/* High Score Display */}
-          {/* {highScore && (
-            <div className="mb-4 bg-gradient-to-r from-yellow-600/30 to-yellow-400/30 rounded-xl px-6 py-3 border border-yellow-500/50 text-center">
-              <div className="text-yellow-300 font-bold text-lg">🏆 Best Record</div>
-              <div className="text-white text-2xl font-bold">{highScore.moves} moves</div>
-              <div className="text-yellow-200/70 text-sm">by {highScore.name}</div>
-              <button
-                onClick={() => {
-                  setHighScore(null);
-                  try { localStorage.removeItem(HIGH_SCORE_KEY); } catch(e) {}
-                }}
-                className="text-xs text-white/40 hover:text-white/60 mt-1 underline"
-              >
-                Clear Record
-              </button>
-            </div>
-          )} */}
-
+          
           {/* Player Badge - Modal on Mobile, Full on Desktop */}
           {playerName && playerStats && playerStats.games > 0 && (
-            <>
+            <div className="flex-shrink-0 max-w-xs">
               {/* Mobile: Compact badge trigger */}
-              <div className="block sm:hidden mb-3">
+              <div className="block sm:hidden mb-2">
                 <button
-                  onClick={() => setShowBadgeModal(true)}
-                  className="w-full bg-gradient-to-r from-slate-700/50 to-slate-800/50 hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl px-4 py-3 border border-slate-600/50 transition-all transform hover:scale-105 shadow-lg"
+                  onClick={() => handleSelectProfile(currentUser?.username || playerName)}
+                  className="w-full bg-gradient-to-r from-slate-700/50 to-slate-800/50 hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl px-3 py-2 border border-slate-600/50 transition-all transform hover:scale-105 shadow-lg"
                 >
                   <div className="flex items-center justify-center gap-3">
-                    <span className="text-2xl">{playerStats.badge.icon}</span>
+                    <span className="text-xl">{playerStats.badge.icon}</span>
                     <div className="text-center">
-                      <div className="text-white font-bold text-sm" style={{ color: playerStats.badge.color }}>
+                      <div className="text-white font-bold text-xs" style={{ color: playerStats.badge.color }}>
                         {playerStats.badge.name}
                       </div>
-                      <div className="text-white/60 text-xs">
-                        Tap for details
+                      <div className="text-white/60 text-[9px]">
+                        Tap for profile
                       </div>
                     </div>
                   </div>
@@ -1995,7 +2023,8 @@ export default function Home() {
               </div>
 
               {/* Desktop: Full badge display */}
-              <div className="hidden sm:block mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50">
+              <div className="hidden sm:block mb-4 bg-gradient-to-r from-slate-700/50 to-slate-800/50 rounded-xl px-6 py-4 border border-slate-600/50 cursor-pointer hover:from-slate-600/50 transition-all"
+                   onClick={() => handleSelectProfile(currentUser?.username || playerName)}>
                 <div className="text-center mb-3">
                   <div className="flex items-center justify-center gap-3">
                     <span className="text-3xl">{playerStats.badge.icon}</span>
@@ -2008,42 +2037,6 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Next Badge Progress */}
-                  {(() => {
-                    const currentBadgeIndex = BADGE_LEVELS.findIndex(b => b.name === playerStats.badge.name);
-                    const nextBadge = BADGE_LEVELS[currentBadgeIndex + 1];
-
-                    if (nextBadge) {
-                      const gamesProgress = Math.min(playerStats.games / nextBadge.minGames, 1);
-                      const winsProgress = Math.min(playerStats.wins / nextBadge.minWins, 1);
-                      const overallProgress = Math.min(gamesProgress, winsProgress);
-
-                      return (
-                        <div className="mt-2">
-                          <div className="flex items-center justify-between text-xs text-white/70 mb-1">
-                            <span>Next: {nextBadge.icon} {nextBadge.name}</span>
-                            <span>{Math.round(overallProgress * 100)}%</span>
-                          </div>
-                          <div className="w-full bg-slate-600/50 rounded-full h-2">
-                            <div
-                              className="h-2 rounded-full transition-all duration-300"
-                              style={{
-                                width: `${overallProgress * 100}%`,
-                                backgroundColor: nextBadge.color
-                              }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="mt-2 text-center">
-                        <span className="text-yellow-400 text-sm font-bold">🎉 MAX LEVEL ACHIEVED!</span>
-                      </div>
-                    );
-                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-center">
@@ -2057,13 +2050,13 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
          
           
           <button
-            className={`font-bold py-3 px-8 md:py-4 md:px-12 rounded-full transition-all transform shadow-xl border-4 text-lg md:text-xl ${
+            className={`font-bold py-2.5 px-8 md:py-4 md:px-12 rounded-full transition-all transform shadow-xl border-4 text-base md:text-xl flex-shrink-0 ${
               assetsLoaded 
                 ? "bg-yellow-500 hover:bg-yellow-400 text-black border-yellow-600 hover:scale-105" 
                 : "bg-gray-500 text-gray-300 border-gray-600 cursor-wait"
@@ -2073,32 +2066,32 @@ export default function Home() {
           >
             {assetsLoaded ? "DEAL CARDS" : (
               <span className="flex items-center gap-2">
-                <span className="w-5 h-5 border-2 border-gray-300 border-t-white rounded-full animate-spin" />
+                <span className="w-4 h-4 border-2 border-gray-300 border-t-white rounded-full animate-spin" />
                 LOADING...
               </span>
             )}
           </button>
            {/* Global Stats Button */}
-           <div className="mb-2 sm:mb-4 mt-8 sm:mt-8">
+           <div className="mb-2 sm:mb-4 mt-4 sm:mt-8 max-w-xs flex-shrink-0">
             <button
               onClick={() => setShowGlobalStatsModal(true)}
-              className="w-full bg-gradient-to-r from-slate-700/50 to-slate-800/50 hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl px-6 py-3 border border-slate-600/50 transition-all transform hover:scale-105 shadow-lg"
+              className="w-full bg-gradient-to-r from-slate-700/50 to-slate-800/50 hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl px-4 py-2 border border-slate-600/50 transition-all transform hover:scale-105 shadow-lg"
             >
               <div className="text-center">
-                <div className="text-white font-bold text-lg mb-1">🏆 Global Stats</div>
-                <div className="text-white/70 text-sm">View leaderboard & records</div>
+                <div className="text-white font-bold text-sm sm:text-lg mb-0.5 sm:mb-1">🏆 Global Stats</div>
+                <div className="text-white/70 text-[10px] sm:text-sm">View leaderboard & records</div>
               </div>
             </button>
           </div>
           {!assetsLoaded && (
-            <p className="text-white/60 text-xs mt-2 animate-pulse">Caching card assets for smooth gameplay...</p>
+            <p className="text-white/60 text-[10px] mt-1 animate-pulse">Caching card assets...</p>
           )}
         </div>
       ) : (
-        <div className="w-full h-screen flex flex-col p-2 sm:p-4 relative overflow-visible">
+        <div className="w-full h-full flex flex-col p-1 sm:p-4 relative overflow-hidden">
             {/* Game Over / Rankings Overlay */}
             {gameOver && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
                     <div className="text-center max-w-md">
                         <h2 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white mb-3 sm:mb-4 drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]">
                             {rankings[0] === 0 ? "🎉 YOU WIN!" : `${getComputerName(rankings[0] - 1).toUpperCase()} WINS!`}
@@ -2779,102 +2772,26 @@ export default function Home() {
         </div>
       )}
 
-      {/* Badge Details Modal - Mobile Only */}
-      {showBadgeModal && playerStats && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 sm:hidden">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-600 relative"
-          >
-            {/* Close button */}
-            <button
-              onClick={() => setShowBadgeModal(false)}
-              className="absolute top-4 right-4 text-white/60 hover:text-white text-xl font-bold"
-            >
-              ✕
-            </button>
-
-            <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-6 drop-shadow-lg">
-              🏆 Badge Details
-            </h2>
-
-            <div className="space-y-4">
-              {/* Current Badge */}
-              <div className="text-center mb-4">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <span className="text-4xl">{playerStats.badge.icon}</span>
-                  <div>
-                    <div className="text-white font-bold text-xl" style={{ color: playerStats.badge.color }}>
-                      {playerStats.badge.name}
-                    </div>
-                    <div className="text-white/70 text-sm">
-                      {playerStats.games} games • {playerStats.wins} wins
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
-                  <div className="text-white/70 text-xs mb-1">Win Rate</div>
-                  <div className="text-white font-bold text-lg">{playerStats.winRate}%</div>
-                </div>
-                <div className="bg-slate-600/30 rounded-lg p-3 text-center">
-                  <div className="text-white/70 text-xs mb-1">Best Time</div>
-                  <div className="text-white font-bold text-sm">{formatDuration(playerStats.bestTime)}</div>
-                </div>
-              </div>
-
-              {/* Next Badge Progress */}
-              {(() => {
-                const currentBadgeIndex = BADGE_LEVELS.findIndex(b => b.name === playerStats.badge.name);
-                const nextBadge = BADGE_LEVELS[currentBadgeIndex + 1];
-
-                if (nextBadge) {
-                  const gamesProgress = Math.min(playerStats.games / nextBadge.minGames, 1);
-                  const winsProgress = Math.min(playerStats.wins / nextBadge.minWins, 1);
-                  const overallProgress = Math.min(gamesProgress, winsProgress);
-
-                  return (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm text-white/70">
-                        <span>Next: {nextBadge.icon} {nextBadge.name}</span>
-                        <span>{Math.round(overallProgress * 100)}%</span>
-                      </div>
-                      <div className="w-full bg-slate-600/50 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${overallProgress * 100}%`,
-                            backgroundColor: nextBadge.color
-                          }}
-                        />
-                      </div>
-                      <div className="text-center text-xs text-white/60 mt-1">
-                        Need {nextBadge.minWins} wins in {nextBadge.minGames} games
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="text-center py-4">
-                    <span className="text-yellow-400 text-lg font-bold">🎉 MAX LEVEL ACHIEVED!</span>
-                    <div className="text-white/70 text-sm mt-1">You&apos;ve reached the highest badge!</div>
-                  </div>
-                );
-              })()}
-            </div>
-          </motion.div>
-        </div>
-      )}
-
       {/* Leaderboard Modal */}
       {showLeaderboardModal && (
-        <Leaderboard onClose={() => setShowLeaderboardModal(false)} />
+        <Leaderboard 
+          onClose={() => setShowLeaderboardModal(false)} 
+          onSelectProfile={handleSelectProfile}
+        />
+      )}
+
+      {/* Profile Modal */}
+      {viewingProfile && (
+        <Profile
+          user={viewingProfile.user}
+          stats={viewingProfile.stats}
+          isOwnProfile={viewingProfile.isOwn}
+          onClose={() => setViewingProfile(null)}
+          onUpdate={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setViewingProfile(prev => ({ ...prev, user: updatedUser }));
+          }}
+        />
       )}
 
       {/* Auth Modal */}
@@ -2890,12 +2807,16 @@ export default function Home() {
 
       {/* Global Stats Modal */}
       {showGlobalStatsModal && globalStats && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => setShowGlobalStatsModal(false)}
+        >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-600 relative"
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
             <button
@@ -2969,7 +2890,7 @@ export default function Home() {
       )}
 
       {/* Game Version Footer */}
-      <div className="absolute bottom-2 right-2 text-white/30 text-xs font-mono bg-black/20 backdrop-blur-sm px-2 py-1 rounded-md border border-white/10">
+      <div className="absolute bottom-1 right-2 z-[60] text-white/30 text-[10px] sm:text-xs font-mono bg-black/20 backdrop-blur-sm px-2 py-0.5 rounded-md border border-white/10 pointer-events-none">
         {GAME_VERSION}
       </div>
       </div>

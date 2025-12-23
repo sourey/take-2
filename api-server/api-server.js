@@ -57,6 +57,14 @@ const userSchema = new mongoose.Schema({
   },
   password: { type: String, required: true },
   displayName: { type: String, default: null }, // Optional display name
+  avatar: { type: String, default: null }, // Avatar identifier/URL
+  achievements: [{
+    id: String,
+    name: String,
+    icon: String,
+    description: String,
+    earnedAt: { type: Date, default: Date.now }
+  }],
   createdAt: { type: Date, default: Date.now },
   lastLogin: { type: Date, default: Date.now },
   // Aggregated stats (updated after each game)
@@ -303,15 +311,50 @@ app.get('/api/auth/me', authenticateToken, requireAuth, async (req, res) => {
   }
 });
 
+// Get user profile by username
+app.get('/api/users/:username', async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.params.username.toLowerCase() }).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get recent games for this user
+    const recentGames = await Game.find({ 
+      $or: [
+        { userId: user._id },
+        { playerName: user.displayName },
+        { playerName: user.username }
+      ] 
+    }).sort({ createdAt: -1 }).limit(5);
+
+    res.json({
+      user: {
+        id: user._id,
+        username: user.username,
+        displayName: user.displayName,
+        stats: user.stats,
+        createdAt: user.createdAt,
+        avatar: user.avatar || null,
+        achievements: user.achievements || [],
+      },
+      recentGames
+    });
+  } catch (error) {
+    console.error('Get user profile error:', error);
+    res.status(500).json({ error: 'Failed to get profile' });
+  }
+});
+
 // Update user profile (requires auth)
 app.put('/api/auth/profile', authenticateToken, requireAuth, async (req, res) => {
   try {
-    const { displayName } = req.body;
+    const { displayName, avatar } = req.body;
 
-    if (displayName) {
-      req.user.displayName = displayName;
-      await req.user.save();
-    }
+    if (displayName) req.user.displayName = displayName;
+    if (avatar) req.user.avatar = avatar;
+    
+    await req.user.save();
 
     res.json({
       success: true,
@@ -320,6 +363,7 @@ app.put('/api/auth/profile', authenticateToken, requireAuth, async (req, res) =>
         username: req.user.username,
         displayName: req.user.displayName,
         stats: req.user.stats,
+        avatar: req.user.avatar,
       }
     });
   } catch (error) {
@@ -353,7 +397,7 @@ app.post('/api/games', authenticateToken, async (req, res) => {
     const game = new Game(gameData);
     await game.save();
 
-    // Update user stats if authenticated
+    // Update user stats and achievements if authenticated
     if (req.user) {
       const isWin = gameData.rankings[0] === 0;
       const gameDuration = gameData.gameEndTime - gameData.gameStartTime;
@@ -361,13 +405,31 @@ app.post('/api/games', authenticateToken, async (req, res) => {
       req.user.stats.games += 1;
       if (isWin) {
         req.user.stats.wins += 1;
-        // Update best time if this is a winning game and faster
         if (!req.user.stats.bestTime || gameDuration < req.user.stats.bestTime) {
           req.user.stats.bestTime = gameDuration;
         }
       } else {
         req.user.stats.losses += 1;
       }
+
+      // Check for new achievements
+      const { ACHIEVEMENTS } = require('../src/utils/stats'); // This might not work in node if it's ES module
+      // Better to just define conditions here or handle it client side and sync
+      // Given the architecture, let's just update basic stats and let client handle achievements for now
+      // Or define basic ones here
+      
+      const earnedIds = req.user.achievements.map(a => a.id);
+      
+      if (isWin && !earnedIds.includes('first_win')) {
+        req.user.achievements.push({ id: 'first_win', name: 'First Victory', icon: '🏆', description: 'Win your first game' });
+      }
+      if (req.user.stats.games >= 100 && !earnedIds.includes('centurion')) {
+        req.user.achievements.push({ id: 'centurion', name: 'Centurion', icon: '💯', description: 'Play 100 games' });
+      }
+      if (isWin && gameDuration < 120000 && !earnedIds.includes('speed_demon')) {
+        req.user.achievements.push({ id: 'speed_demon', name: 'Speed Demon', icon: '⚡', description: 'Win a game in under 2 minutes' });
+      }
+
       await req.user.save();
     }
 

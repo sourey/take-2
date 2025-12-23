@@ -1,7 +1,7 @@
 // MongoDB Integration for Global Stats and Leaderboards
 // This module handles syncing local stats with global MongoDB storage
 
-import { loadStats, saveStats, getGlobalStats } from './stats.js';
+import { loadStats, saveStats } from './stats.js';
 import { getToken } from './auth.js';
 
 // MongoDB Configuration
@@ -84,8 +84,8 @@ export const getGlobalStatsFromMongo = async () => {
   }
 
   if (!hasMongoConfig()) {
-    console.log('MongoDB not configured - using local stats');
-    return getGlobalStats(); // Fallback to local
+    console.log('MongoDB not configured - using local fallback');
+    return null; 
   }
 
   try {
@@ -95,9 +95,7 @@ export const getGlobalStatsFromMongo = async () => {
     return response;
   } catch (error) {
     console.error('Failed to get global stats from MongoDB:', error);
-    // Fallback to local stats if MongoDB fails
-    console.log('Falling back to local stats');
-    return getGlobalStats();
+    return null;
   }
 };
 
