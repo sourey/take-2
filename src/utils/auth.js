@@ -132,8 +132,9 @@ export const getProfile = async () => {
     }
     return { success: false, error: 'Failed to get profile' };
   } catch (error) {
-    // Token might be expired
-    if (error.message.includes('Authentication')) {
+    // Only clear auth if it's specifically an authentication error (401)
+    // Don't clear on network errors, server errors, etc.
+    if (error.message.includes('401') || error.message.includes('Unauthorized')) {
       clearAuth();
     }
     return { success: false, error: error.message };

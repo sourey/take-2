@@ -177,13 +177,14 @@ export default function Home() {
         setCurrentUser(user);
         setPlayerName(user.displayName || user.username);
 
-        // Refresh user data from server to get latest stats
+        // Try to refresh user data from server to get latest stats
+        // Keep local data even if server sync fails
         refreshUserData().then(updatedUser => {
           if (updatedUser) {
             setCurrentUser(updatedUser);
           }
         }).catch(err => {
-          console.warn('Failed to refresh user data:', err);
+          console.warn('Failed to refresh user data from server, keeping local data:', err);
         });
       }
     }
